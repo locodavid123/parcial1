@@ -1,10 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useUsers } from '@/hooks/useUsers';
 
 export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const { users, loading, error } = useUsers();
+    console.log(users);
+
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -51,6 +55,7 @@ export default function Login() {
                             className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
                         >
                             Ingresar
+                            
                         </button>
                     </div>
                 </form>

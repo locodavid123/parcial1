@@ -32,6 +32,16 @@ CREATE TABLE pedidos (
   total NUMERIC(10,2)
 );
 
+-- NUEVA TABLA: Detalle de Pedidos
+-- Esta tabla es crucial para saber qué productos y en qué cantidad van en cada pedido.
+CREATE TABLE pedidos_detalle (
+  id SERIAL PRIMARY KEY,
+  pedido_id INT REFERENCES pedidos(id),
+  producto_id INT REFERENCES productos(id),
+  cantidad INT,
+  precio_unitario NUMERIC(10,2)
+);
+
 -- Tabla de devoluciones
 CREATE TABLE devoluciones (
   id SERIAL PRIMARY KEY,
@@ -74,9 +84,9 @@ RETURNS NUMERIC AS $$
   SELECT SUM(total) FROM pedidos;
 $$ LANGUAGE sql;
 
--- actualizar stock -- 
-
-CREATE OR REPLACE FUNCTION actualizar_stock()
+-- CORREGIDO: actualizar stock al VENDER --
+-- Esta función ahora se activa cuando se inserta un detalle de pedido (una venta) y RESTA del stock.
+CREATE OR REPLACE FUNCTION actualizar_stock_venta()
 RETURNS TRIGGER AS $$
 BEGIN
   UPDATE productos
@@ -86,14 +96,26 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_actualizar_stock
+-- NUEVO TRIGGER: para descontar stock en una venta
+CREATE TRIGGER trg_actualizar_stock_venta
+AFTER INSERT ON pedidos_detalle
+FOR EACH ROW
+EXECUTE FUNCTION actualizar_stock_venta();
+
+-- CORREGIDO: actualizar stock al DEVOLVER --
+-- Esta función ahora AUMENTA el stock cuando hay una devolución.
+CREATE OR REPLACE FUNCTION actualizar_stock_devolucion()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE productos
+  SET stock = stock + NEW.cantidad
+  WHERE id = NEW.producto_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- CORREGIDO: El trigger ahora llama a la función correcta para devoluciones.
+CREATE TRIGGER trg_actualizar_stock_devolucion
 AFTER INSERT ON devoluciones
 FOR EACH ROW
-EXECUTE FUNCTION actualizar_stock();
-
-
-
-
-
-
-
+EXECUTE FUNCTION actualizar_stock_devolucion();
