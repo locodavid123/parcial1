@@ -29,11 +29,19 @@ export default function Headers() {
     };
 
     return (
-        <header className='flex items-center justify-between p-4'>
-            <h1 className='text-2xl font-bold'>La casa de la chunchulla</h1>
-            <nav className='flex items-center space-x-6'>
+    <header className="bg-gradient-to-r from-yellow-400 via-red-400 to-black flex items-center justify-between p-6 shadow-lg border-b-4 border-yellow-500">
+            <h1 className="text-3xl font-extrabold flex items-center gap-2 text-white">
+                <span role="img" aria-label="chunchulla" className="text-4xl"></span>
+                <Link href="/" className="hover:text-yellow-300 transition-colors">La casa de la chunchulla</Link>
+            </h1>
+            <nav className="flex items-center space-x-8">
                 {loggedInUser ? (
-                    <button onClick={handleLogout} className='hover:text-gray-500 focus:outline-none'>Cerrar Sesión</button>
+                    <>
+                        {loggedInUser.rol === 'SUPERUSER' && (
+                            <Link href="/superUser" className='hover:text-gray-300 transition-colors'>Panel Admin</Link>
+                        )}
+                        <button onClick={handleLogout} className='hover:text-gray-500 focus:outline-none'>Cerrar Sesión</button>
+                    </>
                 ) : (
                     <Link href="/login" className='hover:text-gray-500'>Inicio de Sesión</Link>
                 )}

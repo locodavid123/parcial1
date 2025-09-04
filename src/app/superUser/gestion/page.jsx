@@ -57,7 +57,7 @@ export default function UserManagementPage() {
     const handleDeleteUser = async (userId, userName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar a ${userName}? Esta acción no se puede deshacer.`)) {
             try {
-                const res = await fetch(`/api/users?id=${userId}`, {
+                const res = await fetch(`/superUser/gestion/api?id=${userId}`, {
                     method: 'DELETE',
                 });
 
@@ -90,7 +90,7 @@ export default function UserManagementPage() {
         setUpdateError('');
 
         try {
-            const res = await fetch('/api/users', {
+            const res = await fetch('/superUser/gestion/api', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: editingUser.id, rol: editingUser.rol }),

@@ -9,10 +9,10 @@ export const CartProvider = ({ children }) => {
 
     const addToCart = (product) => {
         setCartItems((prevItems) => {
-            const existingItem = prevItems.find((item) => item.product_id === product.product_id);
+            const existingItem = prevItems.find((item) => item.id === product.id);
             if (existingItem) {
                 return prevItems.map((item) =>
-                    item.product_id === product.product_id
+                    item.id === product.id
                         ? { ...item, quantity: item.quantity + product.quantity }
                         : item
                 );
@@ -22,7 +22,11 @@ export const CartProvider = ({ children }) => {
     };
 
     const removeFromCart = (productId) => {
-        setCartItems((prevItems) => prevItems.filter((item) => item.product_id !== productId));
+        setCartItems((prevItems) => prevItems.filter((item) => item.id !== productId));
+    };
+
+    const clearCart = () => {
+        setCartItems([]);
     };
 
     const itemCount = useMemo(() => {
@@ -33,6 +37,7 @@ export const CartProvider = ({ children }) => {
         cartItems,
         addToCart,
         removeFromCart,
+        clearCart,
         itemCount,
     };
 

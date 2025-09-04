@@ -1,6 +1,8 @@
 'use client'; // Necesario para usar hooks como useState y manejar eventos onClick
 
 import React, { useState } from 'react';
+import { useProducts } from '@/hooks/useProducts'; // Importar el hook de productos
+import { useCart } from '@/context/CartContext'; // Importar el contexto del carrito
 
 // Ícono del carrito de compras (puedes usar una librería como react-icons en un proyecto real)
 const ShoppingCartIcon = () => (
@@ -10,52 +12,13 @@ const ShoppingCartIcon = () => (
 );
 
 export default function BodyUser() {
-    // Estado para mantener los ítems en el carrito. Es un estado local simple.
-    const [cartItems, setCartItems] = useState([]);
-
-    const products = [
-        {
-            id: 1,
-            name: 'Chunchulla Frita Crocante',
-            description: 'Nuestra especialidad. Crujiente por fuera, tierna por dentro. Servida con limón y ají casero.',
-            price: '$15.000',
-            imageUrl: 'https://donjediondo.com/wp-content/uploads/2024/10/6.-Chunchullo-Papa-Criolla.png'
-        },
-        {
-            id: 2,
-            name: 'Chunchulla a la Parrilla',
-            description: 'Asada a la perfección en nuestra parrilla, con un toque ahumado inigualable. Acompañada de papa criolla.',
-            price: '$18.000',
-            imageUrl: 'https://www.infobae.com/new-resizer/2MmG5ZeqZDQNY9yw3dWaPc-1u-Y=/arc-anglerfish-arc2-prod-infobae/public/JCRSL37AIBBPHMQMIS2UDEXTU4.jpg'
-        },
-        {
-            id: 3,
-            name: 'Picada "El Chuncho Mayor"',
-            description: 'Una generosa porción de chunchulla, chorizo, morcilla, papa y arepa. Ideal para compartir.',
-            price: '$35.000',
-            imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3pajraXNoKiwFyxroHhnOCLViids1ZBhXxw&s'
-        },
-        {
-            id: 4,
-            name: 'Empanadas de Chunchulla',
-            description: 'Deliciosas empanadas rellenas de un guiso único de chunchulla. (Orden de 5 unidades).',
-            price: '$12.000',
-            imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZjmK436o4dTRzgZ5yJbBpfr3QA6OTJ6gcrg&s'
-        },
-        {
-            id: 5,
-            name: 'Sopa de Chunchulla',
-            description: 'Una sopa tradicional y reconfortante, con trozos de chunchulla, papa y especias de la casa.',
-            price: '$16.000',
-            imageUrl: 'https://i0.wp.com/www.ranchomateo.com/north-bergen/wp-content/uploads/sites/7/2024/10/Blood-sausage.-4-1.jpg?fit=1400%2C800&ssl=1'
-        }
-    ];
+    const { products, loading, error } = useProducts(); // Usar el hook para obtener productos
+    const { addToCart, cartItems } = useCart(); // Usar el contexto del carrito
 
     // Función para agregar un producto al carrito
     const handleAddToCart = (product) => {
-        setCartItems(prevItems => [...prevItems, product]);
-        alert(`"${product.name}" ha sido agregado al carrito.`);
-        // En una aplicación real, aquí se actualizaría un estado global o se haría una llamada a la API.
+        addToCart({ ...product, quantity: 1 }); // Añadir una unidad por defecto
+        alert(`"${product.nombre}" ha sido agregado al carrito.`);
     };
 
     return (
@@ -64,7 +27,7 @@ export default function BodyUser() {
             <div className="fixed top-24 right-4 z-10">
                 <button className="bg-yellow-500 text-white p-4 rounded-full shadow-lg flex items-center space-x-2 hover:bg-yellow-600 transition-colors">
                     <ShoppingCartIcon />
-                    <span className="font-bold text-lg">{cartItems.length}</span>
+                    <span className="font-bold text-lg">{cartItems.reduce((acc, item) => acc + item.quantity, 0)}</span>
                 </button>
             </div>
 
@@ -72,15 +35,17 @@ export default function BodyUser() {
                 <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">
                     ¡Hola, Cliente! Elige tus favoritos
                 </h2>
+                {loading && <p className="text-center">Cargando productos...</p>}
+                {error && <p className="text-center text-red-500">Error al cargar productos.</p>}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {products.map((product) => (
                         <div key={product.id} className="bg-white rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-300">
-                            <img src={product.imageUrl} alt={product.name} className="w-full h-56 object-cover" />
+                            <img src={product.imageUrl} alt={product.nombre} className="w-full h-56 object-cover" />
                             <div className="p-6 flex flex-col h-full">
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">{product.name}</h3>
-                                <p className="text-gray-600 mb-4 flex-grow">{product.description}</p>
+                                <h3 className="text-xl font-semibold text-gray-900 mb-2">{product.nombre}</h3>
+                                <p className="text-gray-600 mb-4 flex-grow">{product.descripcion}</p>
                                 <div className="flex items-center justify-between mt-auto">
-                                    <span className="text-2xl font-bold text-gray-900">{product.price}</span>
+                                    <span className="text-2xl font-bold text-gray-900">${parseFloat(product.precio).toFixed(2)}</span>
                                     <button
                                         onClick={() => handleAddToCart(product)}
                                         className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-full transition-colors duration-300"

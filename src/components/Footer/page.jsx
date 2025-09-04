@@ -10,16 +10,16 @@ export default function Footer() {
     const currentYear = new Date().getFullYear();
 
     return (
-        <footer className="bg-gray-800 text-white pt-12 pb-8 mt-16">
+    <footer className="bg-gradient-to-r from-black via-yellow-900 to-red-900 text-white pt-12 pb-8 mt-16 shadow-inner">
             <div className="container mx-auto px-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 text-center md:text-left">
                     {/* Navegación */}
                     <div>
                         <h3 className="font-bold text-lg mb-4">Navegación</h3>
                         <ul className="space-y-2">
-                            <li><Link href="#" className="hover:text-yellow-400 transition-colors">Menú</Link></li>
-                            <li><Link href="#" className="hover:text-yellow-400 transition-colors">Sobre Nosotros</Link></li>
-                            <li><Link href="#" className="hover:text-yellow-400 transition-colors">Contacto</Link></li>
+                            <li><Link href="#" className="hover:text-yellow-400 transition-colors font-semibold">Menú</Link></li>
+                            <li><Link href="#" className="hover:text-yellow-400 transition-colors font-semibold">Sobre Nosotros</Link></li>
+                            <li><Link href="#" className="hover:text-yellow-400 transition-colors font-semibold">Contacto</Link></li>
                         </ul>
                     </div>
 
@@ -34,15 +34,15 @@ export default function Footer() {
                     {/* Redes Sociales */}
                     <div>
                         <h3 className="font-bold text-lg mb-4">Síguenos</h3>
-                        <div className="flex justify-center md:justify-start space-x-4">
-                            <a href="#" aria-label="Facebook" className="hover:text-yellow-400 transition-colors"><FacebookIcon /></a>
-                            <a href="#" aria-label="Twitter" className="hover:text-yellow-400 transition-colors"><TwitterIcon /></a>
-                            <a href="#" aria-label="Instagram" className="hover:text-yellow-400 transition-colors"><InstagramIcon /></a>
+                        <div className="flex justify-center md:justify-start space-x-6">
+                            <a href="#" aria-label="Facebook" className="hover:text-yellow-400 transition-transform transform hover:scale-125"><FacebookIcon /></a>
+                            <a href="#" aria-label="Twitter" className="hover:text-yellow-400 transition-transform transform hover:scale-125"><TwitterIcon /></a>
+                            <a href="#" aria-label="Instagram" className="hover:text-yellow-400 transition-transform transform hover:scale-125"><InstagramIcon /></a>
                         </div>
                     </div>
                 </div>
 
-                <div className="border-t border-gray-700 pt-6 text-center text-gray-400 text-sm">
+                <div className="border-t border-yellow-700 pt-6 text-center text-yellow-200 text-sm">
                     <p>&copy; {currentYear} La Casa de la Chunchulla. Todos los derechos reservados.</p>
                 </div>
             </div>

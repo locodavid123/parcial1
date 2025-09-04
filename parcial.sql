@@ -16,12 +16,14 @@ CREATE TABLE clientes (
 );
 
 -- Tabla de productos o servicios
+-- CORREGIDO: Se estandarizan los nombres y se añade la columna imageUrl.
 CREATE TABLE productos (
-  id SERIAL PRIMARY KEY,
-  nombre VARCHAR(100),
-  descripcion TEXT,
-  precio NUMERIC(10,2),
-  stock INT
+  id SERIAL PRIMARY KEY, -- Renombrado de product_id a id para consistencia
+  nombre VARCHAR(100), -- Renombrado de product_name a nombre
+  descripcion TEXT, -- Nuevo campo
+  precio NUMERIC(10,2), -- Renombrado de unit_price a precio
+  stock INT, -- Nuevo campo
+  imageUrl VARCHAR(255) -- Añadido para la URL de la imagen
 );
 
 -- Tabla de pedidos
@@ -29,7 +31,8 @@ CREATE TABLE pedidos (
   id SERIAL PRIMARY KEY,
   cliente_id INT REFERENCES clientes(id),
   fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  total NUMERIC(10,2)
+  total NUMERIC(10,2),
+  status VARCHAR(50) DEFAULT 'Pendiente' -- NUEVO: Para rastrear el estado del pedido
 );
 
 -- NUEVA TABLA: Detalle de Pedidos

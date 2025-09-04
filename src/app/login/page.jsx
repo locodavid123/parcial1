@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'; // Import useEffect
 import { useRouter } from 'next/navigation';
 import { useUsers } from '@/hooks/useUsers';
+import Header from '@/components/Headers/page';
+import Footer from '@/components/Footer/page';
 
 export default function Login() {
     const router = useRouter();
@@ -55,11 +57,22 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-            <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-                <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">Iniciar Sesión</h1>
-                <form onSubmit={handleSubmit}>
-                    <div className="mb-4">
+        <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-100 via-yellow-100 to-pink-100">
+            <div className="w-full">
+                <Header />
+            </div>
+            <div className="flex-1 flex items-center justify-center my-10">
+                <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
+                <div className="flex flex-col items-center mb-6">
+                    <div className="bg-blue-100 rounded-full p-4 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 text-blue-500">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a8.25 8.25 0 1115 0v.75A2.25 2.25 0 0117.25 23h-10.5A2.25 2.25 0 014.5 21v-.75z" />
+                        </svg>
+                    </div>
+                    <h1 className="text-3xl font-bold text-center text-gray-800">Iniciar Sesión</h1>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div>
                         <label htmlFor="email" className="block text-gray-700 text-sm font-bold mb-2">
                             Correo Electrónico
                         </label>
@@ -68,11 +81,11 @@ export default function Login() {
                             id="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            className="shadow appearance-none border border-blue-200 rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300"
                             required
                         />
                     </div>
-                    <div className="mb-6">
+                    <div>
                         <label htmlFor="password" className="block text-gray-700 text-sm font-bold mb-2">
                             Contraseña
                         </label>
@@ -81,32 +94,43 @@ export default function Login() {
                             id="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline"
+                            className="shadow appearance-none border border-yellow-200 rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-yellow-300"
                             required
                         />
                         {loginError && (
-                            <p className="text-red-500 text-xs italic">{loginError}</p>
+                            <p className="text-red-500 text-xs italic mt-2 text-center">{loginError}</p>
                         )}
                     </div>
-                    <div className="flex items-center justify-between">
-                        <button
-                            type="submit"
-                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full flex justify-center items-center disabled:bg-gray-400"
-                            disabled={loading}
-                        >
-                            {loading ? (
-                                <span className="flex items-center">
-                                    <svg className="animate-spin h-5 w-5 mr-2 text-white" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                                    </svg>
-                                    Cargando...
-                                </span>
-                            ) : 'Ingresar'}
-                        </button>
-                    </div>
+                    <button
+                        type="submit"
+                        className="bg-gradient-to-r from-blue-500 via-yellow-400 to-pink-400 hover:from-blue-600 hover:via-yellow-500 hover:to-pink-500 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-300 w-full flex justify-center items-center disabled:bg-gray-400 transition-all duration-200"
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <span className="flex items-center">
+                                <svg className="animate-spin h-5 w-5 mr-2 text-white" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                </svg>
+                                Cargando...
+                            </span>
+                        ) : 'Ingresar'}
+                    </button>
                 </form>
+                </div>
             </div>
+            <div className="w-full mt-8">
+                <Footer />
+            </div>
+            <style jsx>{`
+                .animate-fade-in {
+                    animation: fadeIn 0.7s ease;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
         </div>
     );
 }
