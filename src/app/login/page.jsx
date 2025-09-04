@@ -1,21 +1,46 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useUsers } from '@/hooks/useUsers';
 
 export default function Login() {
+    const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const { users, loading, error } = useUsers();
-    console.log(users);
+    const [loginError, setLoginError] = useState('');
+    const { users = [], loading = false, error } = useUsers(); // fallback para evitar errores
 
+    const redirectByRole = (rol) => {
+        const routes = {
+            SUPERUSER: '/superUser',
+            administador: '/products',
+            cliente: '/bodyuser',
+        };
+        router.push(routes[rol] || '/');
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        // Aquí iría la lógica para enviar los datos a tu backend
-        console.log('Email:', email);
-        console.log('Password:', password);
-        alert('Inicio de sesión enviado. Revisa la consola.');
+        setLoginError('');
+
+        if (!email.includes('@')) {
+            setLoginError('El correo electrónico no es válido.');
+            return;
+        }
+
+        const user = users.find(u => u.correo === email);
+
+        if (user) {
+            if (user.contraseña === password) {
+                alert(`¡Bienvenido, ${user.nombre}! Redirigiendo...`);
+                redirectByRole(user.rol);
+            } else {
+                setLoginError('La contraseña es incorrecta.');
+            }
+        } else {
+            setLoginError('El usuario no se encuentra registrado.');
+        }
     };
 
     return (
@@ -48,17 +73,35 @@ export default function Login() {
                             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline"
                             required
                         />
+                        {loginError && (
+                            <p className="text-red-500 text-xs italic">{loginError}</p>
+                        )}
                     </div>
                     <div className="flex items-center justify-between">
                         <button
                             type="submit"
-                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full flex justify-center items-center disabled:bg-gray-400"
+                            disabled={loading}
                         >
-                            Ingresar
-                            
+                            {loading ? (
+                                <span className="flex items-center">
+                                    <svg className="animate-spin h-5 w-5 mr-2 text-white" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                    </svg>
+                                    Cargando...
+                                </span>
+                            ) : 'Ingresar'}
                         </button>
                     </div>
                 </form>
+
+                {/* DEBUG opcional para desarrollo */}
+                <div className="mt-6 p-4 bg-gray-50 rounded text-xs text-gray-700">
+                    <strong>Usuarios cargados:</strong>
+                    <pre>{JSON.stringify(users, null, 2)}</pre>
+                    <strong>Correo ingresado:</strong> {email}
+                </div>
             </div>
         </div>
     );

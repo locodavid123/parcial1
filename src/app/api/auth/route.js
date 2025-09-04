@@ -9,3 +9,4 @@ export async function GET(request) {
         return new Response("Error al obtener los usuarios", { status: 500 });
     }
 }
+
