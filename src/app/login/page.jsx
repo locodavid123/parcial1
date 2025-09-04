@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Import useEffect
 import { useRouter } from 'next/navigation';
 import { useUsers } from '@/hooks/useUsers';
 
@@ -11,6 +11,12 @@ export default function Login() {
     const [loginError, setLoginError] = useState('');
     const { users = [], loading = false, error } = useUsers(); // fallback para evitar errores
 
+    // Check if user is already logged in on component mount
+    useEffect(() => {
+        if (typeof window !== 'undefined' && localStorage.getItem('loggedInUser')) {
+            router.push('/superUser'); // Or wherever the logged-in user should go
+        }
+    }, [router]);
     const redirectByRole = (rol) => {
         const routes = {
             SUPERUSER: '/superUser',
@@ -32,7 +38,12 @@ export default function Login() {
         const user = users.find(u => u.correo === email);
 
         if (user) {
+            // In a real application, the password should be hashed and compared securely on the server.
+            // This is for demonstration purposes only.
             if (user.contraseña === password) {
+                // Store user info in localStorage to persist login state
+                localStorage.setItem('loggedInUser', JSON.stringify({ id: user.id, nombre: user.nombre, rol: user.rol }));
+
                 alert(`¡Bienvenido, ${user.nombre}! Redirigiendo...`);
                 redirectByRole(user.rol);
             } else {
@@ -95,13 +106,6 @@ export default function Login() {
                         </button>
                     </div>
                 </form>
-
-                {/* DEBUG opcional para desarrollo */}
-                <div className="mt-6 p-4 bg-gray-50 rounded text-xs text-gray-700">
-                    <strong>Usuarios cargados:</strong>
-                    <pre>{JSON.stringify(users, null, 2)}</pre>
-                    <strong>Correo ingresado:</strong> {email}
-                </div>
             </div>
         </div>
     );
