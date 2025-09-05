@@ -1,14 +1,17 @@
 "use client";
 
 import { useCart } from "@/context/CartContext";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useProducts } from "@/hooks/useProducts";
-import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 export default function Body() {
-    const { addToCart } = useCart();
+    const router = useRouter();
+    const { cartItems, addToCart } = useCart();
     const { products, loading, error } = useProducts();
     const [quantities, setQuantities] = useState({});
+    const [pedidoError, setPedidoError] = useState('');
+    const [pedidoSuccess, setPedidoSuccess] = useState('');
 
     const handleQuantityChange = (productId, value) => {
         const qty = Math.max(1, parseInt(value) || 1);
@@ -18,6 +21,18 @@ export default function Body() {
     const handleAddToCart = (product) => {
         const quantity = quantities[product.id] || 1;
         addToCart({ ...product, quantity });
+        setPedidoSuccess('Producto agregado al carrito');
+        setPedidoError('');
+        setTimeout(() => setPedidoSuccess(''), 2000);
+    };
+
+    const handleRealizarPedido = () => {
+        if (cartItems.length === 0) {
+            setPedidoError('El carrito está vacío. Agrega productos antes de continuar.');
+            setPedidoSuccess('');
+            return;
+        }
+        router.push('/cart');
     };
 
     return (
@@ -25,6 +40,8 @@ export default function Body() {
             {loading && <p className="text-center">Cargando productos...</p>}
             {error && <p className="text-center text-red-500">Error al cargar productos.</p>}
             <h2 className="text-black text-3xl font-bold text-center my-8">Nuestros Productos</h2>
+            {pedidoError && <p className="text-center text-red-500 font-semibold mb-4">{pedidoError}</p>}
+            {pedidoSuccess && <p className="text-center text-green-500 font-semibold mb-4">{pedidoSuccess}</p>}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                 {products.map((product) => (
                     <div key={product.id} className="bg-white border-2 border-yellow-200 rounded-xl p-6 shadow-xl flex flex-col hover:scale-105 hover:shadow-2xl transition-transform duration-300">
@@ -53,6 +70,15 @@ export default function Body() {
                         </button>
                     </div>
                 ))}
+            </div>
+            {/* Botón para ir al carrito */}
+            <div className="flex justify-center mt-10">
+                <button
+                    onClick={handleRealizarPedido}
+                    className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200"
+                >
+                    Hacer Pedido
+                </button>
             </div>
         </main>
     );
