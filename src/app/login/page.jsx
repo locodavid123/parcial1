@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'; // Import useEffect
 import { useRouter } from 'next/navigation';
 import { useUsers } from '@/hooks/useUsers';
 import Header from '@/components/Headers/page';
+import Link from 'next/link';
 import Footer from '@/components/Footer/page';
 
 export default function Login() {
@@ -117,6 +118,14 @@ export default function Login() {
                         ) : 'Ingresar'}
                     </button>
                 </form>
+                <div className="text-center mt-6">
+                    <p className="text-sm text-gray-600">
+                        ¿No tienes una cuenta?{' '}
+                        <Link href="/register" className="font-medium text-blue-500 hover:text-blue-600">
+                            Regístrate aquí
+                        </Link>
+                    </p>
+                </div>
                 </div>
             </div>
             <div className="w-full mt-8">

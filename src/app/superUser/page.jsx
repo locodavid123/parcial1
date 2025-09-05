@@ -30,10 +30,10 @@ export default function Home() {
                         </div>
                     </Link>
                     {/* Configuración General */}
-                    <Link href="/superUser/settings" className="block">
+                    <Link href="/superUser/clientes" className="block">
                         <div className="bg-white p-6 rounded-lg shadow-md h-full transition-transform transform hover:scale-105 hover:shadow-xl cursor-pointer">
-                            <h2 className="text-2xl font-semibold mb-4 text-gray-800">Configuración General</h2>
-                            <p className="text-gray-600">Ajustes globales de la aplicación.</p>
+                            <h2 className="text-2xl font-semibold mb-4 text-gray-800">clientes</h2>
+                            <p className="text-gray-600">visualizacion de clientes con los datos de contacto</p>
                         </div>
                     </Link>
                     {/* Modificación de Pedidos */}
