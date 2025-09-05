@@ -40,6 +40,9 @@ export default function Headers() {
                         {loggedInUser.rol === 'SUPERUSER' && (
                             <Link href="/superUser" className='hover:text-gray-300 transition-colors'>Panel Admin</Link>
                         )}
+                        {loggedInUser.rol === 'cliente' && (
+                            <Link href="/clientes" className='hover:text-gray-300 transition-colors'>Panel Cliente</Link>
+                        )}
                         <button onClick={handleLogout} className='hover:text-gray-500 focus:outline-none'>Cerrar Sesión</button>
                     </>
                 ) : (

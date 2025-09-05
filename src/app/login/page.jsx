@@ -24,7 +24,7 @@ export default function Login() {
         const routes = {
             SUPERUSER: '/superUser',
             administador: '/products',
-            cliente: '/bodyuser',
+            cliente: '/clientes',
         };
         router.push(routes[rol] || '/');
     };
