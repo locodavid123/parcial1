@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
 import Link from 'next/link';
 import { useProducts } from '@/hooks/useProducts'; // Hook para manejar productos
 
 export default function ProductManagementPage() {
+    const router = useRouter();
     const { products, loading, error, fetchProducts } = useProducts();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -20,6 +22,20 @@ export default function ProductManagementPage() {
         nombre: '',
     });
     const [apiError, setApiError] = useState('');
+
+    useEffect(() => {
+        const loggedInUser = localStorage.getItem('loggedInUser');
+        if (loggedInUser) {
+            const parsedUser = JSON.parse(loggedInUser);
+            if (parsedUser.rol !== 'SUPERUSER') {
+                // Si no es un SUPERUSER, lo redirige a la página principal
+                router.push('/');
+            }
+        } else {
+            // Si no ha iniciado sesión, lo redirige al login
+            router.push('/login');
+        }
+    }, [router]);
 
     const handleOpenModal = (product = null) => {
         setApiError('');

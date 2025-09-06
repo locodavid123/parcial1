@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useUsers } from '@/hooks/useUsers';
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
 import Link from 'next/link';
 
 export default function UserManagementPage() {
+    const router = useRouter();
     const { users, loading, error, fetchUsers } = useUsers();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -19,6 +21,20 @@ export default function UserManagementPage() {
     const [creationError, setCreationError] = useState('');
     const [editingUser, setEditingUser] = useState(null);
     const [updateError, setUpdateError] = useState('');
+
+    useEffect(() => {
+        const loggedInUser = localStorage.getItem('loggedInUser');
+        if (loggedInUser) {
+            const parsedUser = JSON.parse(loggedInUser);
+            if (parsedUser.rol !== 'SUPERUSER') {
+                // Si no es un SUPERUSER, lo redirige a la página principal
+                router.push('/');
+            }
+        } else {
+            // Si no ha iniciado sesión, lo redirige al login
+            router.push('/login');
+        }
+    }, [router]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;

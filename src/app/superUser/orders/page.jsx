@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
 import Link from 'next/link';
@@ -33,6 +34,22 @@ function useOrders() {
 }
 
 export default function OrderManagementPage() {
+    const router = useRouter();
+
+    useEffect(() => {
+        const loggedInUser = localStorage.getItem('loggedInUser');
+        if (loggedInUser) {
+            const parsedUser = JSON.parse(loggedInUser);
+            if (parsedUser.rol !== 'SUPERUSER') {
+                // Si no es un SUPERUSER, lo redirige a la página principal
+                router.push('/');
+            }
+        } else {
+            // Si no ha iniciado sesión, lo redirige al login
+            router.push('/login');
+        }
+    }, [router]);
+
     const { orders, loading, error, fetchOrders } = useOrders();
 
     const handleUpdateStatus = async (orderId, newStatus) => {
