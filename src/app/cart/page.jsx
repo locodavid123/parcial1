@@ -40,15 +40,32 @@ export default function Cart() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    cliente_info: loggedInUser,
-                    total: totalPrice,
-                    items: cartItems,
+                    // CORREGIDO: Estructura de datos que coincide con la API
+                    cliente_id: loggedInUser.id,
+                    cliente_info: {
+                        nombre: loggedInUser.nombre,
+                        correo: loggedInUser.correo,
+                        telefono: loggedInUser.telefono || '' // Aseguramos que el teléfono se envíe
+                    },
+                    productos: cartItems.map(item => ({
+                        producto_id: item.id,
+                        cantidad: item.quantity,
+                    })),
                 }),
             });
 
             if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.message || 'Error al procesar el pedido.');
+                // Manejo de errores mejorado para evitar el fallo de JSON
+                const errorText = await res.text();
+                console.error("Error response from server:", errorText);
+                let errorMessage = 'Error al procesar el pedido.';
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.message || errorMessage;
+                } catch (e) {
+                    errorMessage = "Ocurrió un error inesperado en el servidor. Revisa la consola del servidor para más detalles.";
+                }
+                throw new Error(errorMessage);
             }
 
             alert('¡Pedido realizado con éxito!');

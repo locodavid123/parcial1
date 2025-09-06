@@ -108,23 +108,23 @@ export default function OrderManagementPage() {
                             <table className="min-w-full bg-white">
                                 <thead className="bg-gray-100">
                                     <tr>
-                                        <th className="py-3 px-6 text-left">ID Pedido</th>
-                                        <th className="py-3 px-6 text-left">Cliente</th>
-                                        <th className="py-3 px-6 text-left">Fecha</th>
-                                        <th className="py-3 px-6 text-right">Total</th>
-                                        <th className="py-3 px-6 text-center">Estado</th>
-                                        <th className="py-3 px-6 text-center">Acciones</th>
+                                        <th className="text-black py-3 px-6 text-left">ID Pedido</th>
+                                        <th className="text-black py-3 px-6 text-left">Cliente</th>
+                                        <th className="text-black py-3 px-6 text-left">Fecha</th>
+                                        <th className="text-black py-3 px-6 text-right">Total</th>
+                                        <th className="text-black py-3 px-6 text-center">Estado</th>
+                                        <th className="text-black py-3 px-6 text-center">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {orders.map((order) => (
                                         <tr key={order.id} className="border-b hover:bg-gray-50">
-                                            <td className="py-3 px-6 font-mono">#{order.id}</td>
-                                            <td className="py-3 px-6">{order.cliente_nombre}</td>
-                                            <td className="py-3 px-6">{new Date(order.fecha).toLocaleString()}</td>
-                                            <td className="py-3 px-6 text-right">${parseFloat(order.total).toFixed(2)}</td>
-                                            <td className="py-3 px-6 text-center">
-                                                <span className={`py-1 px-3 rounded-full text-xs font-semibold ${getStatusClass(order.status)}`}>
+                                            <td className="text-black py-3 px-6 font-mono">#{order.id}</td>
+                                            <td className="text-black py-3 px-6">{order.cliente_nombre}</td>
+                                            <td className="text-black py-3 px-6">{new Date(order.fecha).toLocaleString()}</td>
+                                            <td className="text-black py-3 px-6 text-right">${parseFloat(order.total).toFixed(2)}</td>
+                                            <td className="text-black py-3 px-6 text-center">
+                                                <span className={`text-black  py-1 px-3 rounded-full text-xs font-semibold ${getStatusClass(order.status)}`}>
                                                     {order.status}
                                                 </span>
                                             </td>
@@ -132,7 +132,7 @@ export default function OrderManagementPage() {
                                                 <select
                                                     onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
                                                     value={order.status}
-                                                    className="border rounded p-1 text-xs mr-2"
+                                                    className="text-black bg-gray-200 border rounded p-1 text-xs mr-2"
                                                 >
                                                     <option value="Pendiente">Pendiente</option>
                                                     <option value="Enviado">Enviado</option>

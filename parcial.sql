@@ -12,7 +12,9 @@ CREATE TABLE clientes (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(100),
   correo VARCHAR(100),
-  telefono VARCHAR(20)
+  telefono VARCHAR(20),
+  -- CORREGIDO: Añadir la referencia al usuario para vincular clientes con cuentas de usuario.
+  usuario_id INT UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
 -- Tabla de productos o servicios
