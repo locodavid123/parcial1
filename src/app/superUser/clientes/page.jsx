@@ -111,11 +111,11 @@ export default function ClientManagementPage() {
                                 <tbody>
                                     {clients.map((client) => (
                                         <tr key={client.id} className="border-b hover:bg-gray-50">
-                                            <td className="py-3 px-6">{client.id}</td>
-                                            <td className="py-3 px-6 font-medium">{client.nombre}</td>
-                                            <td className="py-3 px-6">{client.correo}</td>
-                                            <td className="py-3 px-6">{client.telefono}</td>
-                                            <td className="py-3 px-6 text-center">
+                                            <td className="text-black py-3 px-6">{client.id}</td>
+                                            <td className="text-black py-3 px-6 font-medium">{client.nombre}</td>
+                                            <td className="text-black py-3 px-6">{client.correo}</td>
+                                            <td className="text-black py-3 px-6">{client.telefono}</td>
+                                            <td className="text-black py-3 px-6 text-center">
                                                 <button onClick={() => handleOpenModal(client)} className="bg-indigo-500 text-white py-1 px-3 rounded text-xs hover:bg-indigo-600 mr-2">Editar</button>
                                                 <button onClick={() => handleDelete(client.id, client.nombre)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">Eliminar</button>
                                             </td>

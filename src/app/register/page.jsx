@@ -44,7 +44,7 @@ export default function RegisterPage() {
             // Enviamos los datos sin el campo de verificación de contraseña
             const { verificarContraseña, ...dataToSend } = formData;
 
-            const res = await fetch('/superUser/clientes/api', {
+            const res = await fetch('/superUser/gestion/api', { // CORREGIDO: Apuntar a la API de gestión de usuarios correcta
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(dataToSend),
@@ -63,7 +63,7 @@ export default function RegisterPage() {
             }));
 
             alert(`¡Bienvenido, ${newUser.nombre}! Registro exitoso.`);
-            router.push('/bodyuser');
+            router.push('/login'); // CORREGIDO: Redirigir al login para que el usuario inicie sesión
         } catch (err) {
             setError(err.message);
         } finally {

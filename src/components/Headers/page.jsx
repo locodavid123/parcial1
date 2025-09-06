@@ -38,7 +38,10 @@ export default function Headers() {
                 {loggedInUser ? (
                     <>
                         {loggedInUser.rol === 'SUPERUSER' && (
-                            <Link href="/superUser" className='hover:text-gray-300 transition-colors'>Panel Admin</Link>
+                            <Link href="/superUser" className='hover:text-gray-300 transition-colors'>Panel Super</Link>
+                        )}
+                        {loggedInUser.rol === 'administador' && (
+                            <Link href="/admin" className='hover:text-gray-300 transition-colors'>Panel Admin</Link>
                         )}
                         {loggedInUser.rol === 'cliente' && (
                             <Link href="/clientes" className='hover:text-gray-300 transition-colors'>Panel Cliente</Link>

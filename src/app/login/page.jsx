@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'; // Import useEffect
 import { useRouter } from 'next/navigation';
 import { useUsers } from '@/hooks/useUsers';
-import Header from '@/components/Headers/page';
+import Headers from '@/components/Headers/page'; // CORREGIDO: El componente se llama Headers
 import Link from 'next/link';
 import Footer from '@/components/Footer/page';
 
@@ -16,14 +16,17 @@ export default function Login() {
 
     // Check if user is already logged in on component mount
     useEffect(() => {
-        if (typeof window !== 'undefined' && localStorage.getItem('loggedInUser')) {
-            router.push('/superUser'); // Or wherever the logged-in user should go
+        const loggedInUser = localStorage.getItem('loggedInUser');
+        if (typeof window !== 'undefined' && loggedInUser) {
+            const user = JSON.parse(loggedInUser);
+            // CORREGIDO: Redirigir al panel correcto según el rol del usuario ya logueado.
+            redirectByRole(user.rol);
         }
     }, [router]);
     const redirectByRole = (rol) => {
         const routes = {
             SUPERUSER: '/superUser',
-            administador: '/products',
+            administador: '/admin',
             cliente: '/clientes',
         };
         router.push(routes[rol] || '/');
@@ -60,7 +63,7 @@ export default function Login() {
     return (
         <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-100 via-yellow-100 to-pink-100">
             <div className="w-full">
-                <Header />
+                <Headers />
             </div>
             <div className="flex-1 flex items-center justify-center my-10">
                 <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
