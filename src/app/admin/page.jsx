@@ -46,7 +46,7 @@ export default function SuperUserDashboard() {
                         }
                     />
                     <AdminCard
-                        href="/superUser/pedidos"
+                        href="/admin/pedidos"
                         title="Gestión de Pedidos"
                         description="Revisar pedidos recientes, actualizar estados y gestionar devoluciones."
                         icon={
