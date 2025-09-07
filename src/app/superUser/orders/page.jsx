@@ -36,18 +36,28 @@ function useOrders() {
 export default function OrderManagementPage() {
     const router = useRouter();
 
+    // Este useEffect ahora también escuchará cambios en el localStorage
     useEffect(() => {
-        const loggedInUser = localStorage.getItem('loggedInUser');
-        if (loggedInUser) {
-            const parsedUser = JSON.parse(loggedInUser);
-            if (parsedUser.rol !== 'SUPERUSER') {
-                // Si no es un SUPERUSER, lo redirige a la página principal
-                router.push('/');
+        const checkAuth = () => {
+            const loggedInUser = localStorage.getItem('loggedInUser');
+            if (loggedInUser) {
+                const parsedUser = JSON.parse(loggedInUser);
+                if (parsedUser.rol !== 'SUPERUSER') {
+                    // Si no es un SUPERUSER, lo redirige a la página principal
+                    router.push('/');
+                }
+            } else {
+                // Si no ha iniciado sesión, lo redirige al login
+                router.push('/login');
             }
-        } else {
-            // Si no ha iniciado sesión, lo redirige al login
-            router.push('/login');
-        }
+        };
+
+        checkAuth(); // Comprobar al montar
+
+        // Escuchar cambios en el storage para reaccionar al logout/login en otras pestañas
+        window.addEventListener('storage', checkAuth);
+
+        return () => window.removeEventListener('storage', checkAuth);
     }, [router]);
 
     const { orders, loading, error, fetchOrders } = useOrders();

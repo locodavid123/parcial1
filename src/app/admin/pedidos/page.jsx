@@ -47,7 +47,7 @@ export default function OrderManagementPage() {
     const handleCloseModal = () => setIsModalOpen(false);
 
     const handleStatusChange = (e) => {
-        setCurrentOrder(prev => ({ ...prev, estado: e.target.value }));
+        setCurrentOrder(prev => ({ ...prev, status: e.target.value }));
     };
 
     const handleSubmit = async (e) => {
@@ -58,7 +58,7 @@ export default function OrderManagementPage() {
             const res = await fetch('/api/orders', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: currentOrder.id, estado: currentOrder.estado }),
+                body: JSON.stringify({ id: currentOrder.id, status: currentOrder.status }),
             });
 
             if (!res.ok) {
@@ -77,7 +77,7 @@ export default function OrderManagementPage() {
     const handleDelete = async (orderId) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar el pedido #${orderId}?`)) {
             try {
-                const res = await fetch(`/api/pedidos?id=${orderId}`, { method: 'DELETE' });
+                const res = await fetch(`/api/orders?id=${orderId}`, { method: 'DELETE' });
                 if (!res.ok) {
                     const errorData = await res.json();
                     throw new Error(errorData.message || 'Error al eliminar el pedido');
@@ -125,8 +125,8 @@ export default function OrderManagementPage() {
                                             <td className="py-3 px-6">{new Date(order.fecha).toLocaleDateString()}</td>
                                             <td className="py-3 px-6">${parseFloat(order.total).toFixed(2)}</td>
                                             <td className="py-3 px-6">
-                                                <span className={`py-1 px-3 rounded-full text-xs ${order.estado === 'Completado' ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
-                                                    {order.estado}
+                                                <span className={`py-1 px-3 rounded-full text-xs ${order.status === 'Completado' ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
+                                                    {order.status}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-6 text-center">
@@ -149,8 +149,8 @@ export default function OrderManagementPage() {
                         <h2 className="text-2xl font-bold mb-6 text-gray-800">Editar Pedido #{currentOrder.id}</h2>
                         <form onSubmit={handleSubmit}>
                             <div className="mb-6">
-                                <label htmlFor="estado" className="block text-gray-700 text-sm font-bold mb-2">Estado del Pedido</label>
-                                <select id="estado" value={currentOrder.estado} onChange={handleStatusChange} className="shadow border rounded w-full py-2 px-3 text-gray-700">
+                                <label htmlFor="status" className="block text-gray-700 text-sm font-bold mb-2">Estado del Pedido</label>
+                                <select id="status" value={currentOrder.status} onChange={handleStatusChange} className="shadow border rounded w-full py-2 px-3 text-gray-700">
                                     <option value="Pendiente">Pendiente</option>
                                     <option value="Procesando">Procesando</option>
                                     <option value="Enviado">Enviado</option>
