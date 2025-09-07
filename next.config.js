@@ -2,19 +2,10 @@
 const nextConfig = {
   images: {
     remotePatterns: [
-      {
+      { // Permitir cualquier dominio
         protocol: 'https',
-        hostname: 'i.ytimg.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'donjediondo.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'cloudfront-us-east-1.images.arcpublishing.com',
-      },
-      // Puedes agregar aquí otros dominios que necesites
+        hostname: '**',
+      }
     ],
   },
 };
