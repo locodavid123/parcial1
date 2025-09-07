@@ -62,20 +62,17 @@ export default function ClientePanel() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-gray-50">
+        <div className="min-h-screen flex flex-col bg-gradient-to-br from-yellow-50 via-red-50 to-gray-100">
             <Headers />
-            <main className="flex-1 container mx-auto p-8">
+            <main className="flex-1 container mx-auto p-8 bg-gradient-to-br from-yellow-50 via-red-50 to-gray-100">
                 <h1 className="text-4xl font-bold text-gray-800 mb-2">Panel de Cliente</h1>
                 <p className="text-xl text-gray-600 mb-10">¡Hola, {user?.nombre}!</p>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 max-w-lg mx-auto">
                     <button onClick={handleVerPedidos} className="bg-blue-600 text-white font-bold py-4 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-transform transform hover:scale-105">
                         {showPedidos ? 'Ocultar Mis Pedidos' : 'Ver Mis Pedidos'}
                     </button>
-                    <Link href="/clientes/cambiar-contrasena" className="bg-yellow-500 text-white font-bold py-4 px-6 rounded-lg shadow-md hover:bg-yellow-600 transition-transform transform hover:scale-105 text-center">
-                        Cambiar Contraseña
-                    </Link>
-                    <Link href="/cart" className="bg-green-600 text-white font-bold py-4 px-6 rounded-lg shadow-md hover:bg-green-700 transition-transform transform hover:scale-105 text-center">
+                    <Link href="/" className="bg-green-600 text-white font-bold py-4 px-6 rounded-lg shadow-md hover:bg-green-700 transition-transform transform hover:scale-105 text-center">
                         Hacer Pedido
                     </Link>
                 </div>
