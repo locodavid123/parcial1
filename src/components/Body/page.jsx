@@ -45,8 +45,8 @@ export default function Body() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                 {products.map((product) => (
                     <div key={product.id} className="bg-white border-2 border-yellow-200 rounded-xl p-6 shadow-xl flex flex-col hover:scale-105 hover:shadow-2xl transition-transform duration-300">
-                        <img src={product.imageUrl} alt={product.nombre} className="w-full h-48 object-cover mb-4 rounded-xl border-2 border-yellow-300" />
-                        <p className="text-xs text-gray-400 break-all">{product.imageUrl}</p>
+                        <img src={product.imageurl} alt={product.nombre} className="w-full h-48 object-cover mb-4 rounded-xl border-2 border-yellow-300" />
+                        
                         <div className="flex-grow">
                             <h3 className="text-black text-lg xl font-semibold">{product.nombre}</h3>
                             <p className="text-gray-600 mt-2">{product.descripcion}</p>

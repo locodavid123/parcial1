@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useProducts } from '@/hooks/useProducts'; // Hook para manejar productos
 
 export default function ProductManagementPage() {
@@ -14,12 +15,11 @@ export default function ProductManagementPage() {
     const [isEditing, setIsEditing] = useState(false);
     // Estado inicial del producto, coincidiendo con los campos del formulario y la base de datos
     const [currentProduct, setCurrentProduct] = useState({
-        product_name: '',
-        unit_price: '',
-        imageUrl: '',
-        descripcion: '',
-        stock: '',
         nombre: '',
+        descripcion: '',
+        precio: '',
+        stock: '',
+        imageurl: '',
     });
     const [apiError, setApiError] = useState('');
 
@@ -48,12 +48,18 @@ export default function ProductManagementPage() {
                 descripcion: product.descripcion || '',
                 precio: product.precio || '',
                 stock: product.stock || '',
-                imageUrl: product.imageUrl || '',
+                imageurl: product.imageurl || '',
             });
         } else {
             setIsEditing(false);
             // Resetear el formulario para un nuevo producto
-            setCurrentProduct({ product_name: '', unit_price: '', imageUrl: '', descripcion: '', stock: '', nombre: '' });
+            setCurrentProduct({
+                nombre: '',
+                descripcion: '',
+                precio: '',
+                stock: '',
+                imageurl: '',
+            });
         }
         setIsModalOpen(true);
     };
@@ -147,7 +153,15 @@ export default function ProductManagementPage() {
                                 <tbody>
                                     {products.map((product) => (
                                         <tr key={product.id} className="border-b hover:bg-gray-50">
-                                            <td className="text-black py-3 px-6"><img src={product.imageUrl} alt={product.nombre} className="h-12 w-12 object-cover rounded" /></td>
+                                            <td className="text-black py-3 px-6">
+                                                <Image
+                                                    src={product.imageurl || '/images/placeholder.png'} // Corregido a 'imageurl' y con imagen por defecto
+                                                    alt={product.nombre}
+                                                    width={48}
+                                                    height={48}
+                                                    className="h-12 w-12 object-cover rounded"
+                                                />
+                                            </td>
                                             <td className="text-black py-3 px-6 font-medium">{product.nombre}</td>
                                             <td className="text-black py-3 px-6 text-sm max-w-xs truncate">{product.descripcion}</td>
                                             <td className="text-black py-3 px-6 text-center">{product.stock}</td>
@@ -191,8 +205,8 @@ export default function ProductManagementPage() {
                                 </div>
                             </div>
                             <div className="mb-6">
-                                <label htmlFor="imageUrl" className="text-black block text-sm font-bold mb-2">URL de la Imagen</label>
-                                <input type="text" name="imageUrl" value={currentProduct.imageUrl} onChange={handleInputChange} className="text-black shadow border rounded w-full py-2 px-3" required />
+                                <label htmlFor="imageurl" className="text-black block text-sm font-bold mb-2">URL de la Imagen</label>
+                                <input type="text" name="imageurl" value={currentProduct.imageurl} onChange={handleInputChange} className="text-black shadow border rounded w-full py-2 px-3" required />
                             </div>
                             {apiError && <p className="text-red-500 text-xs italic mb-4">{apiError}</p>}
                             <div className="flex items-center justify-end space-x-4">
