@@ -2,8 +2,9 @@ import pool from "@/app/config/db";
 import { NextResponse } from "next/server";
 
 export async function POST(request) {
+    const client = await pool.connect();
     try {
-        const { nombre, correo, contraseña, rol } = await request.json();
+        const { nombre, correo, contraseña, rol, telefono } = await request.json();
 
         // Validación básica de los datos
         if (!nombre || !correo || !contraseña || !rol) {
@@ -13,23 +14,39 @@ export async function POST(request) {
             );
         }
 
+        await client.query('BEGIN');
+
         // En una aplicación real, aquí deberías hashear la contraseña antes de guardarla.
         // Ejemplo: const hashedPassword = await bcrypt.hash(contraseña, 10);
 
-        const newUser = await pool.query(
+        const userRes = await client.query(
             "INSERT INTO usuarios (nombre, correo, contraseña, rol) VALUES ($1, $2, $3, $4) RETURNING *",
             [nombre, correo, contraseña, rol]
         );
+        const newUser = userRes.rows[0];
 
-        return NextResponse.json(newUser.rows[0], { status: 201 });
+        // Si el rol es 'cliente', insertar también en la tabla de clientes
+        if (rol === 'cliente') {
+            await client.query(
+                "INSERT INTO clientes (nombre, correo, telefono, usuario_id) VALUES ($1, $2, $3, $4)",
+                [nombre, correo, telefono || null, newUser.id]
+            );
+        }
+
+        await client.query('COMMIT');
+
+        return NextResponse.json(newUser, { status: 201 });
 
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error(error);
         // Manejar error de correo duplicado
         if (error.code === '23505') { // Código de error de PostgreSQL para violación de unicidad
             return NextResponse.json({ message: "El correo electrónico ya está registrado." }, { status: 409 });
         }
         return NextResponse.json({ message: "Error al crear el usuario." }, { status: 500 });
+    } finally {
+        client.release();
     }
 }
 
