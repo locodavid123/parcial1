@@ -43,7 +43,7 @@ export default function AdminClientManagementPage() {
         setUpdateError('');
 
         try {
-            const res = await fetch('/api/clientes', {
+            const res = await fetch('/superUser/clientes/api', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
