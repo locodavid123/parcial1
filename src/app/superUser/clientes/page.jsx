@@ -39,7 +39,7 @@ export default function ClientManagementPage() {
         setApiError('');
 
         const method = isEditing ? 'PUT' : 'POST';
-        const endpoint = '/api/clients';
+        const endpoint = '/superUser/clientes/api';
 
         try {
             const res = await fetch(endpoint, {
@@ -64,7 +64,7 @@ export default function ClientManagementPage() {
     const handleDelete = async (clientId, clientName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar a "${clientName}"?`)) {
             try {
-                const res = await fetch(`/api/clients?id=${clientId}`, { method: 'DELETE' });
+                const res = await fetch(`/superUser/clientes/api?id=${clientId}`, { method: 'DELETE' });
                 if (!res.ok) {
                     const errorData = await res.json();
                     throw new Error(errorData.message || 'Error al eliminar el cliente');
