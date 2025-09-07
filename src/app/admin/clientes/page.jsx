@@ -67,6 +67,22 @@ export default function AdminClientManagementPage() {
         }
     };
 
+    const handleDelete = async (clientId, clientName) => {
+        if (window.confirm(`¿Estás seguro de que quieres eliminar a "${clientName}"?`)) {
+            try {
+                const res = await fetch(`/superUser/clientes/api?id=${clientId}`, { method: 'DELETE' });
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.message || 'Error al eliminar el cliente');
+                }
+                alert('¡Cliente eliminado exitosamente!');
+                fetchClients();
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            }
+        }
+    };
+
     return (
         <main>
             <Headers />
@@ -108,8 +124,12 @@ export default function AdminClientManagementPage() {
                                             <td className="py-3 px-6 text-center">
                                                 <button
                                                     onClick={() => handleEditClick(client)}
-                                                    className="bg-indigo-500 text-white py-1 px-3 rounded text-xs hover:bg-indigo-600"
+                                                    className="bg-indigo-500 text-white py-1 px-3 rounded text-xs hover:bg-indigo-600 mr-2"
                                                 >Editar</button>
+                                                <button
+                                                    onClick={() => handleDelete(client.id, client.nombre)}
+                                                    className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600"
+                                                >Eliminar</button>
                                             </td>
                                         </tr>
                                     ))}

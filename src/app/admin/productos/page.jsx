@@ -65,7 +65,7 @@ export default function ProductManagementPage() {
         setApiError('');
 
         try {
-            const res = await fetch('/api/productos', {
+            const res = await fetch('/admin/productos/auth', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(currentProduct),
@@ -87,7 +87,7 @@ export default function ProductManagementPage() {
     const handleDelete = async (productId, productName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar "${productName}"?`)) {
             try {
-                const res = await fetch(`/api/productos?id=${productId}`, { method: 'DELETE' });
+                const res = await fetch(`/admin/productos/auth?id=${productId}`, { method: 'DELETE' });
                 if (!res.ok) throw new Error('Error al eliminar el producto');
                 alert('¡Producto eliminado exitosamente!');
                 fetchProducts();
@@ -140,8 +140,8 @@ export default function ProductManagementPage() {
                                             <td className="text-black py-3 px-6">{product.stock}</td>
                                             <td className="text-black py-3 px-6 text-center">
                                                 <button onClick={() => handleOpenModal(product)} className="bg-indigo-500 text-white py-1 px-3 rounded text-xs hover:bg-indigo-600 mr-2">Editar</button>
-                                                {/* El botón de eliminar solo es visible para el SUPERUSER */}
-                                                {userRole === 'SUPERUSER' && (
+                                                {/* El botón de eliminar es visible para SUPERUSER y administrador */}
+                                                {(userRole === 'SUPERUSER' || userRole === 'administador') && (
                                                     <button onClick={() => handleDelete(product.id, product.nombre)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">Eliminar</button>
                                                 )}
                                             </td>
