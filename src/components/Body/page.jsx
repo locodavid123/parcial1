@@ -80,7 +80,6 @@ export default function Body() {
                     Hacer Pedido
                 </button>
             </div>
-            <img src="https://www.infobae.com/colombia/2024/08/10/saquele-provecho-a-los-platanos-maduros-rellenandolos-de-queso-esta-es-la-receta/" alt="" />
         </main>
     );
 }

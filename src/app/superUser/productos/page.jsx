@@ -155,7 +155,7 @@ export default function ProductManagementPage() {
                                         <tr key={product.id} className="border-b hover:bg-gray-50">
                                             <td className="text-black py-3 px-6">
                                                 <Image
-                                                    src={product.imageurl || '/images/placeholder.png'} // Corregido a 'imageurl' y con imagen por defecto
+                                                    src={product.imageurl } // Corregido a 'imageurl' y con imagen por defecto
                                                     alt={product.nombre}
                                                     width={48}
                                                     height={48}
