@@ -23,6 +23,12 @@ export default function Home() {
                         </div>
                     </Link>
                     {/* Reportes de Ventas */}
+                    <Link href="/superUser/reportes" className="block">
+                        <div className="bg-white p-6 rounded-lg shadow-md h-full transition-transform transform hover:scale-105 hover:shadow-xl cursor-pointer">
+                            <h2 className="text-2xl font-semibold mb-4 text-gray-800">Reportes de Ventas</h2>
+                            <p className="text-gray-600">Visualizar reportes de ventas y estadísticas.</p>
+                        </div>
+                    </Link>
                     <Link href="/superUser/productos" className="block">
                         <div className="bg-white p-6 rounded-lg shadow-md h-full transition-transform transform hover:scale-105 hover:shadow-xl cursor-pointer">
                             <h2 className="text-2xl font-semibold mb-4 text-gray-800">productos</h2>
