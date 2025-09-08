@@ -19,7 +19,7 @@ export default function ProductManagementPage() {
         descripcion: '',
         precio: '',
         stock: '',
-        imageurl: '',
+        imageUrl: '',
     });
     const [apiError, setApiError] = useState('');
 
@@ -48,7 +48,7 @@ export default function ProductManagementPage() {
                 descripcion: product.descripcion || '',
                 precio: product.precio || '',
                 stock: product.stock || '',
-                imageurl: product.imageurl || '',
+                imageUrl: product.imageUrl || '',
             });
         } else {
             setIsEditing(false);
@@ -58,7 +58,7 @@ export default function ProductManagementPage() {
                 descripcion: '',
                 precio: '',
                 stock: '',
-                imageurl: '',
+                imageUrl: '',
             });
         }
         setIsModalOpen(true);
@@ -155,7 +155,7 @@ export default function ProductManagementPage() {
                                         <tr key={product.id} className="border-b hover:bg-gray-50">
                                             <td className="text-black py-3 px-6">
                                                 <Image
-                                                    src={product.imageurl } // Corregido a 'imageurl' y con imagen por defecto
+                                                    src={product.imageurl}
                                                     alt={product.nombre}
                                                     width={48}
                                                     height={48}
@@ -205,8 +205,8 @@ export default function ProductManagementPage() {
                                 </div>
                             </div>
                             <div className="mb-6">
-                                <label htmlFor="imageurl" className="text-black block text-sm font-bold mb-2">URL de la Imagen</label>
-                                <input type="text" name="imageurl" value={currentProduct.imageurl} onChange={handleInputChange} className="text-black shadow border rounded w-full py-2 px-3" required />
+                                <label htmlFor="imageUrl" className="text-black block text-sm font-bold mb-2">URL de la Imagen</label>
+                                <input type="text" name="imageUrl" value={currentProduct.imageUrl} onChange={handleInputChange} className="text-black shadow border rounded w-full py-2 px-3" required />
                             </div>
                             {apiError && <p className="text-red-500 text-xs italic mb-4">{apiError}</p>}
                             <div className="flex items-center justify-end space-x-4">
