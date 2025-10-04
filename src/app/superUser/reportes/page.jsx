@@ -1,19 +1,16 @@
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
-import pool from '@/app/config/db'; // Ruta corregida a la conexión de la BD
+import getDb from '@/app/config/mongo';
 
 async function getTotalVentas() {
     try {
-        // Consulta para sumar el total de los pedidos con status 'Completado'
-        // NOTA: PostgreSQL devuelve los nombres de las columnas en minúsculas por defecto.
-        const result = await pool.query(
-            "SELECT SUM(total) as total_ventas FROM pedidos WHERE status = 'Completado'"
-        );
-
-        // La librería 'pg' para PostgreSQL devuelve los resultados en la propiedad 'rows'.
-        // Si no hay ventas completadas, SUM(total) puede ser NULL.
-        // El alias 'total_ventas' se convierte a 'total_ventas' en el objeto de resultado.
-        const total = result.rows[0].total_ventas || 0;
+        // Sumar el total de los pedidos con status 'Completado' en MongoDB
+        const db = await getDb();
+        const res = await db.collection('pedidos').aggregate([
+            { $match: { status: 'Completado' } },
+            { $group: { _id: null, total_ventas: { $sum: '$total' } } }
+        ]).toArray();
+        const total = (res[0] && res[0].total_ventas) ? res[0].total_ventas : 0;
         
         return total;
     } catch (error) {

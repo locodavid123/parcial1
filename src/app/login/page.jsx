@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'; // Import useEffect
 import { useRouter } from 'next/navigation';
-import { useUsers } from '@/hooks/useUsers';
 import Headers from '@/components/Headers/page'; // CORREGIDO: El componente se llama Headers
 import Link from 'next/link';
 import Footer from '@/components/Footer/page';
@@ -12,7 +11,7 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loginError, setLoginError] = useState('');
-    const { users = [], loading = false, error } = useUsers(); // fallback para evitar errores
+    const {  loading = false, error } = {};
 
     // Check if user is already logged in on component mount
     useEffect(() => {
@@ -32,7 +31,7 @@ export default function Login() {
         router.push(routes[rol] || '/');
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setLoginError('');
 
@@ -41,22 +40,25 @@ export default function Login() {
             return;
         }
 
-        const user = users.find(u => u.correo === email);
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
 
-        if (user) {
-            // In a real application, the password should be hashed and compared securely on the server.
-            // This is for demonstration purposes only.
-            if (user.contraseña === password) {
-                // Store user info in localStorage to persist login state
-                localStorage.setItem('loggedInUser', JSON.stringify({ id: user.id, nombre: user.nombre, rol: user.rol }));
-
-                alert(`¡Bienvenido, ${user.nombre}! Redirigiendo...`);
-                redirectByRole(user.rol);
-            } else {
-                setLoginError('La contraseña es incorrecta.');
+            const data = await res.json();
+            if (!res.ok) {
+                setLoginError(data.message || 'Error al iniciar sesión');
+                return;
             }
-        } else {
-            setLoginError('El usuario no se encuentra registrado.');
+
+            const user = data.user;
+            localStorage.setItem('loggedInUser', JSON.stringify({ id: user.id, nombre: user.nombre, rol: user.rol }));
+            alert(`¡Bienvenido, ${user.nombre}! Redirigiendo...`);
+            redirectByRole(user.rol);
+        } catch (err) {
+            setLoginError(err.message || 'Error al conectar con el servidor');
         }
     };
 

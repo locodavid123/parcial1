@@ -1,195 +1,194 @@
-import pool from "@/app/config/db";
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
+import { ObjectId } from 'mongodb';
+import getDb, { getClient } from '@/app/config/mongo';
+
+function toObjectId(id) {
+    try {
+        return new ObjectId(id);
+    } catch (e) {
+        return null;
+    }
+}
 
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
-    const clienteId = searchParams.get('cliente_id');
+    const clienteId = searchParams.get('cliente_id'); // este es usuario_id (id del usuario)
 
     try {
-        let query;
-        let params;
+        const db = await getDb();
 
+        // Si se proporciona clienteId (usuario_id), buscamos clientes con ese usuario_id
+        let match = {};
         if (clienteId) {
-            // Consulta para un cliente específico
-            query = `
-                SELECT p.*, c.nombre as cliente_nombre, c.correo as cliente_correo
-                FROM pedidos p
-                JOIN clientes c ON p.cliente_id = c.id
-                WHERE c.usuario_id = $1
-                ORDER BY p.fecha DESC
-            `;
-            params = [clienteId];
-        } else {
-            // Consulta para obtener todos los pedidos (para el admin)
-            query = `
-                SELECT p.*, c.nombre as cliente_nombre, c.correo as cliente_correo
-                FROM pedidos p
-                JOIN clientes c ON p.cliente_id = c.id
-                ORDER BY p.fecha DESC
-            `;
-            params = [];
+            const clientes = await db.collection('clientes').find({ usuario_id: clienteId }).project({ _id: 1 }).toArray();
+            const clienteIds = clientes.map(c => c._id);
+            if (clienteIds.length === 0) {
+                return NextResponse.json([]);
+            }
+            match = { cliente_id: { $in: clienteIds } };
         }
 
-        const result = await pool.query(query, params);
+        const pipeline = [
+            { $match: match },
+            {
+                $lookup: {
+                    from: 'clientes',
+                    localField: 'cliente_id',
+                    foreignField: '_id',
+                    as: 'cliente'
+                }
+            },
+            { $unwind: { path: '$cliente', preserveNullAndEmptyArrays: true } },
+            { $sort: { createdAt: -1 } }
+        ];
 
-        // Si no se encuentran pedidos para un cliente específico, devolver un array vacío en lugar de 404
-        if (clienteId && result.rows.length === 0) {
-            return NextResponse.json([]);
-        }
-
-        return NextResponse.json(result.rows);
+        const pedidos = await db.collection('pedidos').aggregate(pipeline).toArray();
+        return NextResponse.json(pedidos);
     } catch (error) {
-        console.error("Error al obtener pedidos:", error);
-        return NextResponse.json({ message: "Error al obtener los pedidos", error: error.message }, { status: 500 });
+        console.error('Error al obtener pedidos:', error);
+        return NextResponse.json({ message: 'Error al obtener los pedidos', error: error.message }, { status: 500 });
     }
 }
 
 export async function POST(request) {
     const { cliente_id, cliente_info, productos } = await request.json();
-    const client = await pool.connect();
+    const client = await getClient();
+    const session = client.startSession();
 
     try {
-        await client.query('BEGIN');
+        const db = await getDb();
+        let resultPedido;
 
-        // 1. Verificar si el cliente ya existe en la tabla 'clientes'
-        let clienteExistente = await client.query('SELECT id FROM clientes WHERE usuario_id = $1', [cliente_id]);
-        let finalClientId;
+        await session.withTransaction(async () => {
+            const clientesCol = db.collection('clientes');
+            const productosCol = db.collection('productos');
+            const pedidosCol = db.collection('pedidos');
 
-        if (clienteExistente.rows.length > 0) {
-            finalClientId = clienteExistente.rows[0].id;
-        } else {
-            // Si no existe, lo creamos y lo vinculamos al usuario.
-            const nuevoCliente = await client.query('INSERT INTO clientes (nombre, correo, telefono, usuario_id) VALUES ($1, $2, $3, $4) RETURNING id', [
-                cliente_info.nombre,
-                cliente_info.correo,
-                cliente_info.telefono || '', // CORREGIDO: Usar el teléfono del cliente_info
-                cliente_id,
-            ]);
-            finalClientId = nuevoCliente.rows[0].id;
-        }
+            // 1. Verificar si existe cliente vinculado al usuario
+            let cliente = await clientesCol.findOne({ usuario_id: cliente_id }, { session });
+            if (!cliente) {
+                const nuevo = {
+                    nombre: cliente_info.nombre,
+                    correo: cliente_info.correo,
+                    telefono: cliente_info.telefono || '',
+                    usuario_id: cliente_id,
+                    createdAt: new Date()
+                };
+                const insertRes = await clientesCol.insertOne(nuevo, { session });
+                cliente = { _id: insertRes.insertedId, ...nuevo };
+            }
 
-        // 2. Obtener precios de la DB y calcular el total para seguridad
-        const productIds = productos.map((p) => p.producto_id);
-        const pricesRes = await client.query('SELECT id, nombre, precio, stock FROM productos WHERE id = ANY($1::int[])', [ // CORREGIDO: Se añade 'nombre' para el mensaje de error.
-            productIds
-        ]);
+            // 2. Obtener precios y comprobar stock
+            const productIds = productos.map(p => toObjectId(p.producto_id)).filter(Boolean);
+            const prodsFromDb = await productosCol.find({ _id: { $in: productIds } }, { session }).toArray();
 
-        let totalCalculado = 0;
-        const productosConPrecioDB = productos.map((p) => {
-            const productFromDB = pricesRes.rows.find((dbProd) => dbProd.id === p.producto_id);
-            if (!productFromDB) throw new Error(`Producto con ID ${p.producto_id} no encontrado.`);
-            if (productFromDB.stock < p.cantidad) throw new Error(`Stock insuficiente para "${productFromDB.nombre}". Disponible: ${productFromDB.stock}, Solicitado: ${p.cantidad}.`); // CORREGIDO: Mensaje de error mejorado.
-            totalCalculado += productFromDB.precio * p.cantidad;
-            return {
-                ...p,
-                precio_unitario: productFromDB.precio,
+            let totalCalculado = 0;
+            const productosConPrecioDB = productos.map((p) => {
+                const prod = prodsFromDb.find(dbp => dbp._id.equals(toObjectId(p.producto_id)));
+                if (!prod) throw new Error(`Producto con ID ${p.producto_id} no encontrado.`);
+                if ((prod.stock || 0) < p.cantidad) throw new Error(`Stock insuficiente para "${prod.nombre || prod._id}". Disponible: ${prod.stock || 0}, Solicitado: ${p.cantidad}.`);
+                totalCalculado += (prod.precio || 0) * p.cantidad;
+                return { producto_id: prod._id, cantidad: p.cantidad, precio_unitario: prod.precio || 0 };
+            });
+
+            // 3. Crear pedido
+            const pedidoDoc = {
+                cliente_id: cliente._id,
+                total: totalCalculado,
+                status: 'Pendiente',
+                productos: productosConPrecioDB,
+                createdAt: new Date(),
+                updatedAt: new Date()
             };
+            const pedidoInsert = await pedidosCol.insertOne(pedidoDoc, { session });
+
+            // 4. Actualizar stock
+            for (const item of productosConPrecioDB) {
+                await productosCol.updateOne({ _id: item.producto_id }, { $inc: { stock: -item.cantidad } }, { session });
+            }
+
+            resultPedido = { pedidoId: pedidoInsert.insertedId, clienteId: cliente._id };
         });
 
-        // 3. Crear el pedido
-        const pedidoRes = await client.query(
-            'INSERT INTO pedidos (cliente_id, total, status) VALUES ($1, $2, $3) RETURNING id', // CORREGIDO: Se añade el estado 'Pendiente'
-            [finalClientId, totalCalculado, 'Pendiente'] // CORREGIDO: Se añade el estado 'Pendiente'
-        );
-        const pedidoId = pedidoRes.rows[0].id;
-
-        // 4. Insertar los detalles del pedido y actualizar stock
-        for (const producto of productosConPrecioDB) {
-            // Insertar detalle
-            await client.query(
-                'INSERT INTO pedidos_detalle (pedido_id, producto_id, cantidad, precio_unitario) VALUES ($1, $2, $3, $4)',
-                [pedidoId, producto.producto_id, producto.cantidad, producto.precio_unitario]
-            );
-            // Actualizar stock explícitamente (más seguro que depender solo del trigger)
-            await client.query('UPDATE productos SET stock = stock - $1 WHERE id = $2', [producto.cantidad, producto.producto_id]);
-        }
-
-        await client.query('COMMIT');
-        return NextResponse.json({ message: 'Pedido creado exitosamente', pedidoId: pedidoId, clienteId: finalClientId }, { status: 201 });
-
+        return NextResponse.json({ message: 'Pedido creado exitosamente', ...resultPedido }, { status: 201 });
     } catch (error) {
-        await client.query('ROLLBACK');
-        console.error("Error al crear el pedido:", error);
+        console.error('Error al crear el pedido:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
     } finally {
-        client.release();
+        await session.endSession();
     }
 }
 
 export async function PUT(request) {
-    const client = await pool.connect();
     const { id, status } = await request.json();
+    const client = await getClient();
+    const session = client.startSession();
 
     try {
-        await client.query('BEGIN');
+        const db = await getDb();
+        let updatedPedido;
 
-        // Si el nuevo estado es 'Cancelado', devolvemos los productos al stock.
-        if (status === 'Cancelado') {
-            const itemsToReturn = await client.query('SELECT producto_id, cantidad FROM pedidos_detalle WHERE pedido_id = $1', [id]);
+        await session.withTransaction(async () => {
+            const pedidosCol = db.collection('pedidos');
+            const productosCol = db.collection('productos');
 
-            for (const item of itemsToReturn.rows) {
-                await client.query('UPDATE productos SET stock = stock + $1 WHERE id = $2', [item.cantidad, item.producto_id]);
+            if (status === 'Cancelado') {
+                // devolver stock
+                const pedido = await pedidosCol.findOne({ _id: toObjectId(id) }, { session });
+                if (!pedido) throw new Error('Pedido no encontrado');
+                for (const item of pedido.productos || []) {
+                    await productosCol.updateOne({ _id: item.producto_id }, { $inc: { stock: item.cantidad } }, { session });
+                }
             }
-        }
 
-        // Actualizamos el estado del pedido.
-        const result = await pool.query(
-            "UPDATE pedidos SET status = $1 WHERE id = $2 RETURNING *",
-            [status, id]
-        );
+            const res = await pedidosCol.findOneAndUpdate(
+                { _id: toObjectId(id) },
+                { $set: { status, updatedAt: new Date() } },
+                { returnDocument: 'after', session }
+            );
 
-        if (result.rowCount === 0) {
-            await client.query('ROLLBACK');
-            return NextResponse.json({ message: "Pedido no encontrado" }, { status: 404 });
-        }
+            if (!res.value) throw new Error('Pedido no encontrado');
+            updatedPedido = res.value;
+        });
 
-        await client.query('COMMIT');
-        return NextResponse.json(result.rows[0]);
-
+        return NextResponse.json(updatedPedido);
     } catch (error) {
-        await client.query('ROLLBACK');
-        console.error("Error al actualizar el pedido:", error);
+        console.error('Error al actualizar el pedido:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
     } finally {
-        client.release();
+        await session.endSession();
     }
 }
 
 export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const client = await pool.connect();
+    const client = await getClient();
+    const session = client.startSession();
 
     try {
-        await client.query('BEGIN');
+        const db = await getDb();
+        await session.withTransaction(async () => {
+            const pedidosCol = db.collection('pedidos');
+            const productosCol = db.collection('productos');
 
-        // 1. Obtener los productos del pedido para devolverlos al stock.
-        const itemsToReturn = await client.query('SELECT producto_id, cantidad FROM pedidos_detalle WHERE pedido_id = $1', [id]);
+            const pedido = await pedidosCol.findOne({ _id: toObjectId(id) }, { session });
+            if (!pedido) throw new Error('Pedido no encontrado');
 
-        // 2. Devolver cada producto al stock.
-        for (const item of itemsToReturn.rows) {
-            await client.query('UPDATE productos SET stock = stock + $1 WHERE id = $2', [item.cantidad, item.producto_id]);
-        }
+            // devolver stock
+            for (const item of pedido.productos || []) {
+                await productosCol.updateOne({ _id: item.producto_id }, { $inc: { stock: item.cantidad } }, { session });
+            }
 
-        // 3. Eliminar detalles del pedido.
-        await client.query("DELETE FROM pedidos_detalle WHERE pedido_id = $1", [id]);
+            // eliminar pedido
+            await pedidosCol.deleteOne({ _id: toObjectId(id) }, { session });
+        });
 
-        // 4. Eliminar el pedido principal.
-        const result = await client.query("DELETE FROM pedidos WHERE id = $1 RETURNING *", [id]);
-
-        if (result.rowCount === 0) {
-            await client.query('ROLLBACK');
-            return NextResponse.json({ message: "Pedido no encontrado" }, { status: 404 });
-        }
-
-        await client.query('COMMIT');
-        return NextResponse.json({ message: "Pedido eliminado exitosamente" });
-
+        return NextResponse.json({ message: 'Pedido eliminado exitosamente' });
     } catch (error) {
-        await client.query('ROLLBACK');
-        console.error("Error al eliminar el pedido:", error);
+        console.error('Error al eliminar el pedido:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
     } finally {
-        client.release();
+        await session.endSession();
     }
 }

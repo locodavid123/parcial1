@@ -1,13 +1,12 @@
-import pool from "@/app/config/db";
 import { NextResponse } from "next/server";
+import * as Product from '@/models/Product';
 
 // GET all products
 export async function GET() {
     try {
-        const results = await pool.query("SELECT * FROM productos ORDER BY id ASC");
-        // Se añade { revalidate: 0 } para deshabilitar el caché de esta ruta
-        // y asegurar que siempre se obtengan los datos más recientes.
-        return NextResponse.json(results.rows, { next: { revalidate: 0 } });
+        const results = await Product.findAll();
+        // Deshabilitar cache para siempre devolver datos frescos
+        return NextResponse.json(results, { next: { revalidate: 0 } });
     } catch (error) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
@@ -17,11 +16,8 @@ export async function GET() {
 export async function POST(request) {
     const { nombre, descripcion, precio, stock, imageUrl } = await request.json();
     try {
-        const newProduct = await pool.query(
-            "INSERT INTO productos (nombre, descripcion, precio, stock, imageUrl) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            [nombre, descripcion, precio, stock, imageUrl]
-        );
-        return NextResponse.json(newProduct.rows[0], { status: 201 });
+        const created = await Product.create({ nombre, descripcion, precio, stock, imageUrl });
+        return NextResponse.json(created, { status: 201 });
     } catch (error) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
@@ -31,14 +27,11 @@ export async function POST(request) {
 export async function PUT(request) {
     const { id, nombre, descripcion, precio, stock, imageUrl } = await request.json();
     try {
-        const updatedProduct = await pool.query(
-            "UPDATE productos SET nombre = $1, descripcion = $2, precio = $3, stock = $4, imageUrl = $5 WHERE id = $6 RETURNING *",
-            [nombre, descripcion, precio, stock, imageUrl, id]
-        );
-        if (updatedProduct.rowCount === 0) {
+        const updated = await Product.updateById(id, { nombre, descripcion, precio, stock, imageUrl });
+        if (!updated) {
             return NextResponse.json({ message: "Producto no encontrado" }, { status: 404 });
         }
-        return NextResponse.json(updatedProduct.rows[0]);
+        return NextResponse.json(updated);
     } catch (error) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
@@ -49,11 +42,11 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     try {
-        const result = await pool.query("DELETE FROM productos WHERE id = $1 RETURNING *", [id]);
-        if (result.rowCount === 0) {
+        const deleted = await Product.deleteById(id);
+        if (!deleted) {
             return NextResponse.json({ message: "Producto no encontrado" }, { status: 404 });
         }
-        return NextResponse.json(result.rows[0]);
+        return NextResponse.json(deleted);
     } catch (error) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }

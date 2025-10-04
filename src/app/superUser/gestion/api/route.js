@@ -1,52 +1,45 @@
-import pool from "@/app/config/db";
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
+import * as User from '@/models/User';
+import * as Client from '@/models/Client';
+import { getClient, getDb } from '@/app/config/mongo';
+import bcrypt from 'bcryptjs';
 
 export async function POST(request) {
-    const client = await pool.connect();
+    const payload = await request.json();
+    const { nombre, correo, contraseña, rol, telefono } = payload;
+
+    // Validación básica de los datos
+    if (!nombre || !correo || !contraseña || !rol) {
+        return NextResponse.json({ message: "Todos los campos son obligatorios." }, { status: 400 });
+    }
+
+    const client = await getClient();
+    const session = client.startSession();
+
     try {
-        const { nombre, correo, contraseña, rol, telefono } = await request.json();
+        let createdUser;
+        await session.withTransaction(async () => {
+            const db = await getDb();
+            // En producción, hashea la contraseña antes de guardarla
+            const hashed = await bcrypt.hash(String(contraseña), 10);
+            const userDoc = { nombre, correo, contraseña: hashed, rol };
+            createdUser = await User.create(userDoc, { session });
 
-        // Validación básica de los datos
-        if (!nombre || !correo || !contraseña || !rol) {
-            return NextResponse.json(
-                { message: "Todos los campos son obligatorios." },
-                { status: 400 }
-            );
-        }
+            if (rol === 'cliente') {
+                await Client.create({ nombre, correo, telefono: telefono || '', usuario_id: createdUser._id }, { session });
+            }
+        });
 
-        await client.query('BEGIN');
-
-        // En una aplicación real, aquí deberías hashear la contraseña antes de guardarla.
-        // Ejemplo: const hashedPassword = await bcrypt.hash(contraseña, 10);
-
-        const userRes = await client.query(
-            "INSERT INTO usuarios (nombre, correo, contraseña, rol) VALUES ($1, $2, $3, $4) RETURNING *",
-            [nombre, correo, contraseña, rol]
-        );
-        const newUser = userRes.rows[0];
-
-        // Si el rol es 'cliente', insertar también en la tabla de clientes
-        if (rol === 'cliente') {
-            await client.query(
-                "INSERT INTO clientes (nombre, correo, telefono, usuario_id) VALUES ($1, $2, $3, $4)",
-                [nombre, correo, telefono || null, newUser.id]
-            );
-        }
-
-        await client.query('COMMIT');
-
-        return NextResponse.json(newUser, { status: 201 });
-
+        return NextResponse.json(createdUser, { status: 201 });
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error(error);
-        // Manejar error de correo duplicado
-        if (error.code === '23505') { // Código de error de PostgreSQL para violación de unicidad
-            return NextResponse.json({ message: "El correo electrónico ya está registrado." }, { status: 409 });
+        // Detección básica de duplicados
+        if (error.message && error.message.includes('duplicate')) {
+            return NextResponse.json({ message: 'El correo electrónico ya está registrado.' }, { status: 409 });
         }
-        return NextResponse.json({ message: "Error al crear el usuario." }, { status: 500 });
+        return NextResponse.json({ message: 'Error al crear el usuario.' }, { status: 500 });
     } finally {
-        client.release();
+        await session.endSession();
     }
 }
 
@@ -61,16 +54,13 @@ export async function PUT(request) {
             );
         }
 
-        const updatedUser = await pool.query(
-            "UPDATE usuarios SET rol = $1 WHERE id = $2 RETURNING *",
-            [rol, id]
-        );
+        const updatedUser = await User.updateById(id, { rol });
 
-        if (updatedUser.rowCount === 0) {
+        if (!updatedUser) {
             return NextResponse.json({ message: "Usuario no encontrado." }, { status: 404 });
         }
 
-        return NextResponse.json(updatedUser.rows[0]);
+        return NextResponse.json(updatedUser);
     } catch (error) {
         console.error(error);
         return NextResponse.json({ message: "Error al actualizar el usuario." }, { status: 500 });
@@ -86,7 +76,7 @@ export async function DELETE(request) {
             return NextResponse.json({ message: "Falta el ID del usuario." }, { status: 400 });
         }
 
-        const deleteRes = await pool.query("DELETE FROM usuarios WHERE id = $1", [id]);
+        await User.deleteById(id);
 
         return NextResponse.json({ message: "Usuario eliminado" }, { status: 200 });
     } catch (error) {
