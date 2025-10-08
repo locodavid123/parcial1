@@ -107,6 +107,11 @@ export default function Login() {
                             <p className="text-red-500 text-xs italic mt-2 text-center">{loginError}</p>
                         )}
                     </div>
+                    <div className="text-right text-sm">
+                        <Link href="/forgot-password" className="font-medium text-blue-500 hover:text-blue-600">
+                            ¿Olvidaste tu contraseña?
+                        </Link>
+                    </div>
                     <button
                         type="submit"
                         className="bg-gradient-to-r from-blue-500 via-yellow-400 to-pink-400 hover:from-blue-600 hover:via-yellow-500 hover:to-pink-500 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-300 w-full flex justify-center items-center disabled:bg-gray-400 transition-all duration-200"
