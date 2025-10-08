@@ -38,22 +38,23 @@ export async function POST(request) {
 
         // 4. Crear la URL de reseteo que se enviará en el correo
         // Asegúrate de tener NEXT_PUBLIC_BASE_URL en tu .env.local (ej: http://localhost:3000)
-        const resetUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password?token=${resetToken}`;
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+        const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
         // 5. Configurar y enviar el correo electrónico
-        // NOTA: Debes configurar estas variables de entorno en tu archivo .env.local
+        // TODO: Mover estas credenciales a variables de entorno (.env.local) para mayor seguridad.
         const transporter = nodemailer.createTransport({
-            host: process.env.EMAIL_HOST,
-            port: process.env.EMAIL_PORT,
-            secure: process.env.EMAIL_PORT == 465, // true para puerto 465, false para otros
+            host: 'smtp.ethereal.email',
+            port: 587,
+            secure: false, // true para puerto 465, false para otros
             auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
+                user: 'vilma.gislason@ethereal.email',
+                pass: 'BW4vf4wU5W9tUyassA'
             },
         });
 
         await transporter.sendMail({
-            from: `"La Casa de la Chunchulla" <${process.env.EMAIL_FROM}>`,
+            from: '"La Casa de la Chunchulla" <vilma.gislason@ethereal.email>',
             to: user.correo,
             subject: 'Recuperación de Contraseña',
             html: `<p>Has solicitado restablecer tu contraseña. Por favor, haz clic en el siguiente enlace para continuar:</p>
