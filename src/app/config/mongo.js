@@ -13,7 +13,8 @@ if (!globalAny._mongo) {
 
 async function _createClientPromise(uri) {
     const client = new MongoClient(uri, {
-        // Opciones por defecto; ajusta si necesitas comportamiento personalizado
+        // Forzar el uso de TLS para solucionar errores de conexión SSL en ciertos entornos.
+        tls: true,
     });
     const p = client.connect().then((connectedClient) => {
         globalAny._mongo.client = connectedClient;
