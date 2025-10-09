@@ -1,9 +1,9 @@
 import { ObjectId } from 'mongodb';
-import getDb, { getClient } from '@/app/config/mongo';
+import getDb from '@/app/config/mongo';
 
 const COLLECTION = 'usuarios';
 
-async function collection() {
+export async function collection() {
   const db = await getDb();
   return db.collection(COLLECTION);
 }
@@ -68,4 +68,12 @@ export async function findByEmail(email) {
   return col.findOne({ correo: { $regex: `^${esc}$`, $options: 'i' } });
 }
 
-export default { findAll, findById, create, updateById, deleteById, findByEmail };
+export default {
+  findAll,
+  findById,
+  create,
+  updateById,
+  deleteById,
+  findByEmail,
+  collection, // Asegúrate de que esta línea esté presente
+};
