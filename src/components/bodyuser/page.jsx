@@ -39,7 +39,7 @@ export default function BodyUser() {
                 {error && <p className="text-center text-red-500">Error al cargar productos.</p>}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {products.map((product) => (
-                        <div key={product.id} className="bg-white rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-300">
+                        <div key={product._id} className="bg-white rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-300">
                             <img src={product.imageUrl} alt={product.nombre} className="w-full h-56 object-cover" />
                             <div className="p-6 flex flex-col h-full">
                                 <h3 className="text-xl font-semibold text-gray-900 mb-2">{product.nombre}</h3>

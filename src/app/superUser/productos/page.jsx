@@ -13,6 +13,7 @@ export default function ProductManagementPage() {
     const { products, loading, error, fetchProducts } = useProducts();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     // Estado inicial del producto, coincidiendo con los campos del formulario y la base de datos
     const [currentProduct, setCurrentProduct] = useState({
         nombre: '',
@@ -43,7 +44,7 @@ export default function ProductManagementPage() {
             setIsEditing(true);
             // Asegurarse de que todos los campos del producto se cargan en el estado
             setCurrentProduct({
-                id: product.id,
+                _id: product._id, // Corregido de 'id' a '_id'
                 nombre: product.nombre || '',
                 descripcion: product.descripcion || '',
                 precio: product.precio || '',
@@ -118,6 +119,37 @@ export default function ProductManagementPage() {
         }
     };
 
+    const handleDownloadReport = async () => {
+        setIsDownloading(true);
+        try {
+            const response = await fetch('/api/inventory/print');
+ 
+            if (!response.ok) {
+                throw new Error('No se pudo generar el reporte. El servidor respondió con un error.');
+            }
+ 
+            // Convertir la respuesta en un Blob (un objeto tipo archivo)
+            const blob = await response.blob();
+            // Crear una URL para el Blob
+            const url = window.URL.createObjectURL(blob);
+            // Crear un enlace temporal para iniciar la descarga
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'reporte-inventario.pdf'; // Nombre del archivo a descargar
+            document.body.appendChild(a);
+            a.click();
+            // Limpiar
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error al descargar el reporte:', error);
+            alert(error.message);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+
     return (
         <main>
             <Headers />
@@ -125,6 +157,9 @@ export default function ProductManagementPage() {
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-4xl font-bold text-gray-800">Gestión de Productos</h1>
                     <div>
+                        <button onClick={handleDownloadReport} disabled={isDownloading} className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors mr-4 disabled:bg-gray-400">
+                            {isDownloading ? 'Generando...' : 'Generar Reporte (PDF)'}
+                        </button>
                         <button onClick={() => handleOpenModal()} className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition-colors mr-4">
                             + Crear Producto
                         </button>
@@ -152,10 +187,11 @@ export default function ProductManagementPage() {
                                 </thead>
                                 <tbody>
                                     {products.map((product) => (
-                                        <tr key={product.id} className="border-b hover:bg-gray-50">
+                                        <tr key={product._id} className="border-b hover:bg-gray-50">
                                             <td className="text-black py-3 px-6">
                                                 <Image
-                                                    src={product.imageurl}
+                                                    src={product.imageUrl}
+                                                    src={product.imageUrl || '/placeholder.png'} // Usar un placeholder si no hay imagen
                                                     alt={product.nombre}
                                                     width={48}
                                                     height={48}
@@ -168,7 +204,7 @@ export default function ProductManagementPage() {
                                             <td className="text-black py-3 px-6 text-right">${parseFloat(product.precio).toFixed(2)}</td>
                                             <td className="text-black py-3 px-6 text-center">
                                                 <button onClick={() => handleOpenModal(product)} className="bg-indigo-500 text-white py-1 px-3 rounded text-xs hover:bg-indigo-600 mr-2">Editar</button>
-                                                <button onClick={() => handleDelete(product.id, product.nombre)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">Eliminar</button>
+                                                <button onClick={() => handleDelete(product._id, product.nombre)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">Eliminar</button>
                                             </td>
                                         </tr>
                                     ))}

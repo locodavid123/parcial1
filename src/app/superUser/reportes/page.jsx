@@ -1,60 +1,57 @@
+'use client';
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
-import getDb from '@/app/config/mongo';
+import { useState, useEffect } from 'react';
 
-async function getTotalVentas() {
-    try {
-        // Sumar el total de los pedidos con status 'Completado' en MongoDB
-        const db = await getDb();
-        const res = await db.collection('pedidos').aggregate([
-            { $match: { status: 'Completado' } },
-            { $group: { _id: null, total_ventas: { $sum: '$total' } } }
-        ]).toArray();
-        const total = (res[0] && res[0].total_ventas) ? res[0].total_ventas : 0;
-        
-        return total;
-    } catch (error) {
-        console.error("Error al obtener el total de ventas:", error);
-        // En caso de error, podrías retornar un mensaje o un valor que indique el fallo.
-        return 'Error al cargar los datos';
-    }
-}
+export default function ReportesPage() {
+    const [isDownloading, setIsDownloading] = useState(false);
 
-export default async function ReportesPage() {
-    const totalVentas = await getTotalVentas();
+    const handleDownloadReport = async () => {
+        setIsDownloading(true);
+        try {
+            const response = await fetch('/api/inventory/print');
 
-    // Formatear el número como moneda (ej. Dólares estadounidenses)
-    // Puedes ajustar 'en-US' y 'USD' según tu localidad y moneda.
-    const formatoMoneda = new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-    });
+            if (!response.ok) {
+                throw new Error('No se pudo generar el reporte. El servidor respondió con un error.');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'reporte-inventario.pdf';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+
+        } catch (error) {
+            console.error('Error al descargar el reporte:', error);
+            alert(error.message);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     return (
         <main>
             <Headers />
             <div className="container mx-auto px-4 py-8 min-h-screen">
                 <h1 className="text-4xl font-bold text-center text-gray-800 mb-6">
-                    Reporte de Ventas
+                    Reportes
                 </h1>
                 <p className="text-lg text-center text-gray-600 mb-12">
-                    Aquí se muestra el resumen total de las ventas completadas.
+                    Genera los reportes necesarios para la gestión del sistema.
                 </p>
 
-                <div className="flex justify-center">
+                <div className="flex justify-center items-start">
                     <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md text-center">
                         <h2 className="text-2xl font-semibold text-gray-700 mb-4">
-                            Ventas Totales (Completadas)
+                            Reporte de Inventario
                         </h2>
-                        {typeof totalVentas === 'number' ? (
-                            <p className="text-5xl font-bold text-green-600">
-                                {formatoMoneda.format(totalVentas)}
-                            </p>
-                        ) : (
-                            <p className="text-2xl font-bold text-red-500">
-                                {totalVentas}
-                            </p>
-                        )}
+                        <button onClick={handleDownloadReport} disabled={isDownloading} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            {isDownloading ? 'Generando reporte...' : 'Imprimir Inventario (PDF)'}
+                        </button>
                     </div>
                 </div>
             </div>

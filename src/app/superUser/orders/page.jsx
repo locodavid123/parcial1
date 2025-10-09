@@ -34,56 +34,48 @@ function useOrders() {
 }
 
 export default function OrderManagementPage() {
-    const router = useRouter();
-
-    // Este useEffect ahora también escuchará cambios en el localStorage
-    useEffect(() => {
-        const checkAuth = () => {
-            const loggedInUser = localStorage.getItem('loggedInUser');
-            if (loggedInUser) {
-                const parsedUser = JSON.parse(loggedInUser);
-                if (parsedUser.rol !== 'SUPERUSER') {
-                    // Si no es un SUPERUSER, lo redirige a la página principal
-                    router.push('/');
-                }
-            } else {
-                // Si no ha iniciado sesión, lo redirige al login
-                router.push('/login');
-            }
-        };
-
-        checkAuth(); // Comprobar al montar
-
-        // Escuchar cambios en el storage para reaccionar al logout/login en otras pestañas
-        window.addEventListener('storage', checkAuth);
-
-        return () => window.removeEventListener('storage', checkAuth);
-    }, [router]);
-
     const { orders, loading, error, fetchOrders } = useOrders();
+
+    // Función para descargar el PDF de pedidos
+    const handleDownloadPDF = async () => {
+        try {
+            // Apuntar al endpoint correcto para el reporte de pedidos
+            const res = await fetch('/api/orders/print');
+            if (!res.ok) throw new Error('No se pudo generar el PDF');
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'reporte_pedidos.pdf';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        }
+    };
 
     const handleUpdateStatus = async (orderId, newStatus) => {
         try {
-            const res = await fetch('/api/orders', {
+            const res = await fetch(`/api/orders?id=${orderId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: orderId, status: newStatus }),
+                body: JSON.stringify({ status: newStatus }),
             });
             if (!res.ok) throw new Error('Error al actualizar el estado');
-            alert('Estado del pedido actualizado.');
-            fetchOrders();
+            fetchOrders(); // Recargar pedidos
         } catch (err) {
             alert(`Error: ${err.message}`);
         }
     };
 
     const handleDeleteOrder = async (orderId) => {
-        if (window.confirm(`¿Estás seguro de que quieres eliminar el pedido #${orderId}? Esta acción es irreversible.`)) {
+        if (window.confirm(`¿Estás seguro de que quieres eliminar el pedido #${orderId.slice(-6)}?`)) {
             try {
                 const res = await fetch(`/api/orders?id=${orderId}`, { method: 'DELETE' });
                 if (!res.ok) throw new Error('Error al eliminar el pedido');
-                alert('Pedido eliminado exitosamente.');
-                fetchOrders();
+                fetchOrders(); // Recargar pedidos
             } catch (err) {
                 alert(`Error: ${err.message}`);
             }
@@ -95,7 +87,7 @@ export default function OrderManagementPage() {
             case 'Completado': return 'bg-green-200 text-green-800';
             case 'Enviado': return 'bg-blue-200 text-blue-800';
             case 'Cancelado': return 'bg-red-200 text-red-800';
-            default: return 'bg-yellow-200 text-yellow-800'; // Pendiente
+            default: return 'bg-yellow-200 text-yellow-800';
         }
     };
 
@@ -105,9 +97,17 @@ export default function OrderManagementPage() {
             <div className="container mx-auto px-4 py-8 min-h-screen">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-4xl font-bold text-gray-800">Gestión de Pedidos</h1>
-                    <Link href="/superUser" className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
-                        &larr; Volver al Panel
-                    </Link>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleDownloadPDF}
+                            className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition-colors"
+                        >
+                            Descargar PDF
+                        </button>
+                        <Link href="/superUser" className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
+                            &larr; Volver al Panel
+                        </Link>
+                    </div>
                 </div>
 
                 <div className="bg-white p-6 rounded-lg shadow-md">
@@ -128,19 +128,19 @@ export default function OrderManagementPage() {
                                 </thead>
                                 <tbody>
                                     {orders.map((order) => (
-                                        <tr key={order.id} className="border-b hover:bg-gray-50">
-                                            <td className="text-black py-3 px-6 font-mono">#{order.id}</td>
+                                        <tr key={order._id} className="border-b hover:bg-gray-50">
+                                            <td className="text-black py-3 px-6 font-mono">#...{order._id.slice(-6)}</td>
                                             <td className="text-black py-3 px-6">{order.cliente_nombre}</td>
-                                            <td className="text-black py-3 px-6">{new Date(order.fecha).toLocaleString()}</td>
-                                            <td className="text-black py-3 px-6 text-right">${parseFloat(order.total).toFixed(2)}</td>
+                                            <td className="text-black py-3 px-6">{order.fecha ? new Date(order.fecha).toLocaleString() : ''}</td>
+                                            <td className="text-black py-3 px-6 text-right">${order.total ? parseFloat(order.total).toFixed(2) : '0.00'}</td>
                                             <td className="text-black py-3 px-6 text-center">
-                                                <span className={`text-black  py-1 px-3 rounded-full text-xs font-semibold ${getStatusClass(order.status)}`}>
+                                                <span className={`text-black py-1 px-3 rounded-full text-xs font-semibold ${getStatusClass(order.status)}`}> 
                                                     {order.status}
                                                 </span>
                                             </td>
-                                            <td className="py-3 px-6 text-center">
+                                            <td className="py-3 px-6 text-center whitespace-nowrap">
                                                 <select
-                                                    onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
+                                                    onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
                                                     value={order.status}
                                                     className="text-black bg-gray-200 border rounded p-1 text-xs mr-2"
                                                 >
@@ -149,7 +149,7 @@ export default function OrderManagementPage() {
                                                     <option value="Completado">Completado</option>
                                                     <option value="Cancelado">Cancelado</option>
                                                 </select>
-                                                <button onClick={() => handleDeleteOrder(order.id)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">
+                                                <button onClick={() => handleDeleteOrder(order._id)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">
                                                     Eliminar
                                                 </button>
                                             </td>
