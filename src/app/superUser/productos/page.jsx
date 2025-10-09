@@ -191,6 +191,7 @@ export default function ProductManagementPage() {
                                             <td className="text-black py-3 px-6">
                                                 <Image
                                                     src={product.imageUrl}
+                                                    src={product.imageUrl || '/placeholder.png'} // Usar un placeholder si no hay imagen
                                                     alt={product.nombre}
                                                     width={48}
                                                     height={48}

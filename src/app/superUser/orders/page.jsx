@@ -71,7 +71,7 @@ export default function OrderManagementPage() {
     };
 
     const handleDeleteOrder = async (orderId) => {
-        if (window.confirm('¿Estás seguro de que quieres eliminar este pedido?')) {
+        if (window.confirm(`¿Estás seguro de que quieres eliminar el pedido #${orderId.slice(-6)}?`)) {
             try {
                 const res = await fetch(`/api/orders?id=${orderId}`, { method: 'DELETE' });
                 if (!res.ok) throw new Error('Error al eliminar el pedido');
@@ -138,7 +138,7 @@ export default function OrderManagementPage() {
                                                     {order.status}
                                                 </span>
                                             </td>
-                                            <td className="py-3 px-6 text-center">
+                                            <td className="py-3 px-6 text-center whitespace-nowrap">
                                                 <select
                                                     onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
                                                     value={order.status}
