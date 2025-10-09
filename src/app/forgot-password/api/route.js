@@ -37,16 +37,14 @@ export async function POST(request) {
         });
 
         // 4. Crear la URL de reseteo que se enviará en el correo
-        // Asegúrate de tener NEXT_PUBLIC_BASE_URL en tu .env.local (ej: http://localhost:3000)
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-        const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+        const resetUrl = `${baseUrl}/forgot-password/cambio-contrasena?token=${resetToken}`;
 
         // 5. Configurar y enviar el correo electrónico
-        // TODO: Mover estas credenciales a variables de entorno (.env.local) para mayor seguridad.
         const transporter = nodemailer.createTransport({
             host: 'smtp.ethereal.email',
             port: 587,
-            secure: false, // true para puerto 465, false para otros
+            secure: false, // true para 465, false para otros puertos
             auth: {
                 user: 'vilma.gislason@ethereal.email',
                 pass: 'BW4vf4wU5W9tUyassA'
@@ -54,7 +52,7 @@ export async function POST(request) {
         });
 
         await transporter.sendMail({
-            from: '"La Casa de la Chunchulla" <vilma.gislason@ethereal.email>',
+            from: '"Soporte de Cuenta" <no-reply@tu-dominio.com>',
             to: user.correo,
             subject: 'Recuperación de Contraseña',
             html: `<p>Has solicitado restablecer tu contraseña. Por favor, haz clic en el siguiente enlace para continuar:</p>
@@ -65,13 +63,7 @@ export async function POST(request) {
         return NextResponse.json({ message: 'Si tu correo está registrado, recibirás un enlace de recuperación.' });
 
     } catch (error) {
-        console.error('Error en /api/auth/forgot-password:', error);
-        // Limpiar el token si algo falla para evitar problemas de seguridad
-        // (Esta parte es opcional pero recomendada)
-        // await User.updateById(user._id, {
-        //     passwordResetToken: undefined,
-        //     passwordResetExpires: undefined,
-        // });
+        console.error('Error en /forgot-password/api:', error);
         return NextResponse.json({ message: 'Error al procesar la solicitud.' }, { status: 500 });
     }
 }
