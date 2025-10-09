@@ -23,6 +23,7 @@ export default function ProductManagementPage() {
         imageUrl: '',
     });
     const [apiError, setApiError] = useState('');
+    const [notification, setNotification] = useState({ message: '', type: '' });
 
     useEffect(() => {
         const loggedInUser = localStorage.getItem('loggedInUser');
@@ -37,6 +38,13 @@ export default function ProductManagementPage() {
             router.push('/login');
         }
     }, [router]);
+
+    const showNotification = (message, type) => {
+        setNotification({ message, type });
+        setTimeout(() => {
+            setNotification({ message: '', type: '' });
+        }, 3000); // El mensaje desaparece después de 3 segundos
+    };
 
     const handleOpenModal = (product = null) => {
         setApiError('');
@@ -95,7 +103,7 @@ export default function ProductManagementPage() {
                 const errorData = await res.json();
                 throw new Error(errorData.message || `Error al ${isEditing ? 'actualizar' : 'crear'} el producto`);
             }
-            alert(`¡Producto ${isEditing ? 'actualizado' : 'creado'} exitosamente!`);
+            showNotification(`¡Producto ${isEditing ? 'actualizado' : 'creado'} exitosamente!`, 'success');
             handleCloseModal();
             fetchProducts();
         } catch (err) {
@@ -111,10 +119,10 @@ export default function ProductManagementPage() {
                     const errorData = await res.json();
                     throw new Error(errorData.message || 'Error al eliminar el producto');
                 }
-                alert('¡Producto eliminado exitosamente!');
+                showNotification('¡Producto eliminado exitosamente!', 'success');
                 fetchProducts();
             } catch (err) {
-                alert(`Error: ${err.message}`);
+                showNotification(`Error: ${err.message}`, 'error');
             }
         }
     };
@@ -143,7 +151,7 @@ export default function ProductManagementPage() {
             window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Error al descargar el reporte:', error);
-            alert(error.message);
+            showNotification(error.message, 'error');
         } finally {
             setIsDownloading(false);
         }
@@ -169,6 +177,12 @@ export default function ProductManagementPage() {
                     </div>
                 </div>
 
+                {notification.message && (
+                    <div className={`text-center p-3 rounded-md mb-4 ${notification.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {notification.message}
+                    </div>
+                )}
+
                 <div className="bg-white p-6 rounded-lg shadow-md">
                     {loading && <p>Cargando productos...</p>}
                     {error && <p className="text-red-500">{error}</p>}
@@ -190,7 +204,6 @@ export default function ProductManagementPage() {
                                         <tr key={product._id} className="border-b hover:bg-gray-50">
                                             <td className="text-black py-3 px-6">
                                                 <Image
-                                                    src={product.imageUrl}
                                                     src={product.imageUrl || '/placeholder.png'} // Usar un placeholder si no hay imagen
                                                     alt={product.nombre}
                                                     width={48}
