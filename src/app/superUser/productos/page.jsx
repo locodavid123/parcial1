@@ -108,13 +108,15 @@ export default function ProductManagementPage() {
             try {
                 const res = await fetch(`/api/products?id=${productId}`, { method: 'DELETE' });
                 if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.message || 'Error al eliminar el producto');
+                    // Leer el cuerpo del error para un mensaje más específico
+                    const errorData = await res.json().catch(() => ({ message: 'Error al eliminar el producto' }));
+                    throw new Error(errorData.message);
                 }
                 alert('¡Producto eliminado exitosamente!');
                 fetchProducts();
             } catch (err) {
-                alert(`Error: ${err.message}`);
+                setApiError(err.message); // Usar el estado de error para mostrarlo en el UI
+                alert(`Error al eliminar: ${err.message}`); // O mostrarlo en una alerta
             }
         }
     };
@@ -190,7 +192,6 @@ export default function ProductManagementPage() {
                                         <tr key={product._id} className="border-b hover:bg-gray-50">
                                             <td className="text-black py-3 px-6">
                                                 <Image
-                                                    src={product.imageUrl}
                                                     src={product.imageUrl || '/placeholder.png'} // Usar un placeholder si no hay imagen
                                                     alt={product.nombre}
                                                     width={48}
@@ -228,7 +229,7 @@ export default function ProductManagementPage() {
                             </div>
                             <div className="mb-4">
                                 <label htmlFor="descripcion" className="text-black block text-sm font-bold mb-2">Descripción</label>
-                                <textarea name="descripcion" value={currentProduct.descripcion} onChange={handleInputChange} className="text-black shadow border rounded w-full py-2 px-3" rows="3"></textarea>
+                                <textarea name="descripcion" value={currentProduct.descripcion} onChange={handleInputChange} className="text-black shadow border rounded w-full py-2 px-3" rows="3" required></textarea>
                             </div>
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
