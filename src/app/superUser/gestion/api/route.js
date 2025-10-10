@@ -1,16 +1,43 @@
 import { NextResponse } from 'next/server';
-import * as User from '@/models/User';
-import * as Client from '@/models/Client';
+import { findAll, findByEmail, create as createUser, updateById as updateUserById, deleteById as deleteUserById } from '@/models/User';
+import { create as createClient } from '@/models/Client';
 import { getClient, getDb } from '@/app/config/mongo';
+import { Int32 } from 'mongodb'; // 1. Importar Int32
 import bcrypt from 'bcryptjs';
+
+export async function GET() {
+    try {
+        const users = await findAll();
+        // Ocultar la contraseña de todos los usuarios en la respuesta
+        const safeUsers = users.map(user => {
+            const { contraseña, ...safeUser } = user;
+            return safeUser;
+        });
+        return NextResponse.json(safeUsers);
+    } catch (error) {
+        console.error("Error al obtener usuarios:", error);
+        return NextResponse.json({ message: "Error al obtener los usuarios." }, { status: 500 });
+    }
+}
 
 export async function POST(request) {
     const payload = await request.json();
     const { nombre, correo, contraseña, rol, telefono } = payload;
 
     // Validación básica de los datos
-    if (!nombre || !correo || !contraseña || !rol) {
-        return NextResponse.json({ message: "Todos los campos son obligatorios." }, { status: 400 });
+    if (!nombre || !correo || !contraseña || !rol || !telefono) {
+        return NextResponse.json({ message: "Todos los campos (nombre, correo, contraseña, rol, telefono) son obligatorios." }, { status: 400 });
+    }
+
+    // Validar el formato del teléfono para que coincida con el esquema de la BD
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(telefono)) {
+        return NextResponse.json({ message: "El teléfono debe contener exactamente 10 dígitos numéricos." }, { status: 400 });
+    }
+
+    // Validar la longitud de la contraseña original para cumplir con el esquema
+    if (contraseña.length < 6) {
+        return NextResponse.json({ message: "La contraseña debe tener al menos 6 caracteres." }, { status: 400 });
     }
 
     const client = await getClient();
@@ -19,55 +46,107 @@ export async function POST(request) {
     try {
         let createdUser;
         await session.withTransaction(async () => {
-            const db = await getDb();
+            // 1. Verificar si el correo ya existe
+            const existingUser = await findByEmail(correo, { session });
+            if (existingUser) {
+                // Lanzar un error específico que será capturado por el bloque catch
+                const error = new Error("El correo electrónico ya está en uso.");
+                error.status = 409; // HTTP 409 Conflict
+                throw error;
+            }
+
             // En producción, hashea la contraseña antes de guardarla
             const hashed = await bcrypt.hash(String(contraseña), 10);
-            const userDoc = { nombre, correo, contraseña: hashed, rol };
-            createdUser = await User.create(userDoc, { session });
 
-            if (rol === 'cliente') {
-                await Client.create({ nombre, correo, telefono: telefono || '', usuario_id: createdUser._id }, { session });
-            }
+            // 2. Convertir el teléfono a un número entero de 32 bits para que coincida con el esquema de la BD.
+            // Usamos parseInt para convertir el string a número, y new Int32 para forzar el tipo BSON.
+            const telefonoNumerico = new Int32(parseInt(telefono, 10));
+
+            const userDoc = { nombre, correo, contraseña: hashed, rol, telefono: telefonoNumerico };
+            createdUser = await createUser(userDoc, { session });
+
         });
 
-        return NextResponse.json(createdUser, { status: 201 });
+        // Ocultar la contraseña en la respuesta
+        const { contraseña: _, ...safeUser } = createdUser;
+
+        return NextResponse.json(safeUser, { status: 201 });
     } catch (error) {
         console.error(error);
-        // Detección básica de duplicados
-        if (error.message && error.message.includes('duplicate')) {
-            return NextResponse.json({ message: 'El correo electrónico ya está registrado.' }, { status: 409 });
-        }
-        return NextResponse.json({ message: 'Error al crear el usuario.' }, { status: 500 });
+        // Devolver el status y mensaje del error si está definido (ej. 409)
+        const status = error.status || 500;
+        const message = error.message || 'Error al crear el usuario.';
+        return NextResponse.json({ message }, { status });
     } finally {
         await session.endSession();
     }
 }
 
 export async function PUT(request) {
+    const client = await getClient();
+    const session = client.startSession();
     try {
-        const { id, rol } = await request.json();
+        // Usar _id para ser consistente con la base de datos
+        const { _id, rol } = await request.json();
 
-        if (!id || !rol) {
+        if (!_id || !rol) {
             return NextResponse.json(
                 { message: "Se requiere el ID del usuario y el nuevo rol." },
                 { status: 400 }
             );
         }
 
-        const updatedUser = await User.updateById(id, { rol });
+        // Iniciar una transacción para asegurar la atomicidad de la operación
+        let finalUpdatedUser;
 
-        if (!updatedUser) {
-            return NextResponse.json({ message: "Usuario no encontrado." }, { status: 404 });
-        }
+        await session.withTransaction(async () => {
+            const updatedUser = await updateUserById(_id, { rol }, { session });
+            if (!updatedUser) {
+                const error = new Error("Usuario no encontrado.");
+                error.status = 404;
+                throw error;
+            }
 
-        return NextResponse.json(updatedUser);
+            // El teléfono puede no estar presente si el usuario se creó sin él.
+            // Aseguramos que el tipo sea correcto o un valor por defecto numérico.
+            const telefonoNumerico = updatedUser.telefono 
+                ? new Int32(parseInt(String(updatedUser.telefono), 10)) 
+                : new Int32(0);
+
+            // Si el nuevo rol es Administrador, asegurarse de que exista en la colección 'clientes'
+            if (rol === 'Administrador') {
+                const db = await getDb();
+                const clientCollection = db.collection('clientes');
+                // Usar upsert: si no existe un cliente con ese usuario_id, lo crea.
+                await clientCollection.updateOne(
+                    { usuario_id: updatedUser._id },
+                    { $set: { 
+                        nombre: updatedUser.nombre, 
+                        correo: updatedUser.correo, 
+                        telefono: telefonoNumerico
+                    } },
+                    { upsert: true, session }
+                );
+            }
+            finalUpdatedUser = updatedUser;
+        });
+
+        // Ocultar la contraseña en la respuesta
+        const { contraseña, ...safeUser } = finalUpdatedUser;
+        return NextResponse.json(safeUser);
     } catch (error) {
         console.error(error);
-        return NextResponse.json({ message: "Error al actualizar el usuario." }, { status: 500 });
+        const status = error.status || 500;
+        const message = error.message || "Error al actualizar el usuario.";
+        return NextResponse.json({ message }, { status });
+    } finally {
+        await session.endSession();
     }
 }
 
 export async function DELETE(request) {
+    const client = await getClient();
+    const session = client.startSession();
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
@@ -76,11 +155,28 @@ export async function DELETE(request) {
             return NextResponse.json({ message: "Falta el ID del usuario." }, { status: 400 });
         }
 
-        await User.deleteById(id);
+        let deletedUser;
+        await session.withTransaction(async () => {
+            // Borramos el usuario de la colección 'usuarios'
+            deletedUser = await deleteUserById(id, { session });
+            if (deletedUser) {
+                // Borramos el registro correspondiente de la colección 'clientes'
+                const db = await getDb();
+                await db.collection('clientes').deleteOne({ usuario_id: deletedUser._id }, { session });
+            }
+        });
+
+        if (!deletedUser) {
+            return NextResponse.json({ message: "Usuario no encontrado para eliminar." }, { status: 404 });
+        }
 
         return NextResponse.json({ message: "Usuario eliminado" }, { status: 200 });
     } catch (error) {
         console.error(error);
-        return NextResponse.json({ message: "Error al eliminar el usuario." }, { status: 500 });
+        const status = error.status || 500;
+        const message = error.message || "Error al eliminar el usuario.";
+        return NextResponse.json({ message }, { status });
+    } finally {
+        await session.endSession();
     }
 }

@@ -14,7 +14,7 @@ export default function RegisterPage() {
         telefono: '',
         contraseña: '',
         verificarContraseña: '',
-        rol: 'cliente',
+        rol: 'Cliente',
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);

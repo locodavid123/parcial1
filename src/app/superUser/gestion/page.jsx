@@ -16,7 +16,8 @@ export default function UserManagementPage() {
         nombre: '',
         correo: '',
         contraseña: '',
-        rol: 'cliente', // Rol por defecto
+        telefono: '',
+        rol: 'Cliente', // Rol por defecto
     });
     const [creationError, setCreationError] = useState('');
     const [editingUser, setEditingUser] = useState(null);
@@ -61,7 +62,8 @@ export default function UserManagementPage() {
                 nombre: '',
                 correo: '',
                 contraseña: '',
-                rol: 'cliente',
+                telefono: '',
+                rol: 'Cliente',
             });
             fetchUsers(); // Recargar la lista de usuarios
             alert('¡Usuario creado exitosamente!');
@@ -72,7 +74,7 @@ export default function UserManagementPage() {
 
     const handleDeleteUser = async (userId, userName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar a ${userName}? Esta acción no se puede deshacer.`)) {
-            try {
+            try { // Se corrige el endpoint para la API
                 const res = await fetch(`/superUser/gestion/api?id=${userId}`, {
                     method: 'DELETE',
                 });
@@ -109,7 +111,7 @@ export default function UserManagementPage() {
             const res = await fetch('/superUser/gestion/api', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: editingUser.id, rol: editingUser.rol }),
+                body: JSON.stringify({ _id: editingUser._id, rol: editingUser.rol }),
             });
 
             if (!res.ok) {
@@ -130,9 +132,9 @@ export default function UserManagementPage() {
         switch (rol) {
             case 'SUPERUSER':
                 return 'bg-red-200 text-red-800';
-            case 'administador':
+            case 'Administrador':
                 return 'bg-yellow-200 text-yellow-800';
-            case 'cliente':
+            case 'Cliente':
                 return 'bg-green-200 text-green-800';
             default:
                 return 'bg-gray-200 text-gray-800';
@@ -177,13 +179,13 @@ export default function UserManagementPage() {
                                 </thead>
                                 <tbody className="text-gray-700 text-sm font-light">
                                     {users.map((user) => (
-                                        <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
-                                            <td className="py-3 px-6 text-left whitespace-nowrap">{user.id}</td>
+                                        <tr key={user._id} className="border-b border-gray-200 hover:bg-gray-50">
+                                            <td className="py-3 px-6 text-left whitespace-nowrap">{user._id}</td>
                                             <td className="py-3 px-6 text-left">{user.nombre}</td>
                                             <td className="py-3 px-6 text-left">{user.correo}</td>
                                             <td className="py-3 px-6 text-center">
                                                 <span className={`py-1 px-3 rounded-full text-xs font-semibold ${getRoleClass(user.rol)}`}>
-                                                    {user.rol}
+                                                    {user.rol || 'No asignado'}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-6 text-center">
@@ -192,7 +194,7 @@ export default function UserManagementPage() {
                                                     className="bg-indigo-500 text-white py-1 px-3 rounded text-xs hover:bg-indigo-600 mr-2"
                                                 >Editar</button>
                                                 <button
-                                                    onClick={() => handleDeleteUser(user.id, user.nombre)}
+                                                    onClick={() => handleDeleteUser(user._id, user.nombre)}
                                                     className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600"
                                                 >Eliminar</button>
                                             </td>
@@ -224,11 +226,15 @@ export default function UserManagementPage() {
                                 <label htmlFor="contraseña" className="block text-gray-700 text-sm font-bold mb-2">Contraseña</label>
                                 <input type="password" name="contraseña" id="contraseña" value={newUser.contraseña} onChange={handleInputChange} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required />
                             </div>
+                            <div className="mb-4">
+                                <label htmlFor="telefono" className="block text-gray-700 text-sm font-bold mb-2">Teléfono</label>
+                                <input type="tel" name="telefono" id="telefono" value={newUser.telefono} onChange={handleInputChange} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                            </div>
                             <div className="mb-6">
                                 <label htmlFor="rol" className="block text-gray-700 text-sm font-bold mb-2">Rol</label>
                                 <select name="rol" id="rol" value={newUser.rol} onChange={handleInputChange} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                                    <option value="cliente">Cliente</option>
-                                    <option value="administador">Administrador</option>
+                                    <option value="Cliente">Cliente</option>
+                                    <option value="Administrador">Administrador</option>
                                     <option value="SUPERUSER">SUPERUSER</option>
                                 </select>
                             </div>
@@ -255,8 +261,8 @@ export default function UserManagementPage() {
                             <div className="mb-6">
                                 <label htmlFor="rol" className="block text-gray-700 text-sm font-bold mb-2">Rol</label>
                                 <select name="rol" id="rol" value={editingUser.rol} onChange={handleRoleChange} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                                    <option value="cliente">Cliente</option>
-                                    <option value="administador">Administrador</option>
+                                    <option value="Cliente">Cliente</option>
+                                    <option value="Administrador">Administrador</option>
                                     <option value="SUPERUSER">SUPERUSER</option>
                                 </select>
                             </div>
