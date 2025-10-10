@@ -13,6 +13,18 @@ const nextConfig = {
         hostname: '**',
         port: '',
         pathname: '**',
+      },
+      { // Permitir cualquier dominio
+        protocol: 'https',
+        hostname: '**',
+        port: '',
+        pathname: '**',
+      },
+      { // Permitir cualquier dominio
+        protocol: 'https',
+        hostname: '**',
+        port: '',
+        pathname: '**',
       }
       
     ],
