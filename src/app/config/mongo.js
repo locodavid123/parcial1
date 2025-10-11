@@ -1,54 +1,45 @@
 import { MongoClient } from 'mongodb';
 
-// Helper de conexión para MongoDB Atlas.
-// Nota: no lanzamos un error en el tiempo de import para evitar que Next.js
-// falle al iniciar si la variable de entorno falta; en su lugar validamos
-// cuando alguien pide la conexión (getClient/getDb) y mostramos un mensaje
-// descriptivo.
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.MONGODB_DB;
+const options = {};
 
-const globalAny = globalThis;
-if (!globalAny._mongo) {
-    globalAny._mongo = { client: null, promise: null };
+if (!uri) {
+    throw new Error(
+        'Define la variable de entorno MONGODB_URI en .env.local antes de usar la base de datos.\n' +
+        'Ejemplo: MONGODB_URI="mongodb+srv://USER:PASS@cluster0.mongodb.net/?retryWrites=true&w=majority"'
+    );
+}
+if (!dbName) {
+    throw new Error(
+        'Define la variable de entorno MONGODB_DB en .env.local con el nombre de tu base de datos.'
+    );
 }
 
-async function _createClientPromise(uri) {
-    const client = new MongoClient(uri, {
-        // Forzar el uso de TLS para solucionar errores de conexión SSL en ciertos entornos.
-        tls: true,
-    });
-    const p = client.connect().then((connectedClient) => {
-        globalAny._mongo.client = connectedClient;
-        return connectedClient;
-    });
-    globalAny._mongo.promise = p;
-    return p;
+let client;
+let clientPromise;
+
+if (process.env.NODE_ENV === 'development') {
+    // En desarrollo, usamos una variable global para preservar el valor
+    // a través de las recargas de módulos causadas por HMR (Hot Module Replacement).
+    if (!global._mongoClientPromise) {
+        client = new MongoClient(uri, options);
+        global._mongoClientPromise = client.connect();
+    }
+    clientPromise = global._mongoClientPromise;
+} else {
+    // En producción, es mejor no usar una variable global.
+    client = new MongoClient(uri, options);
+    clientPromise = client.connect();
 }
 
 export async function getClient() {
-    const uri = process.env.MONGODB_URI;
-    if (!uri) {
-        throw new Error(
-            'Define la variable de entorno MONGODB_URI en .env.local antes de usar la base de datos.\n' +
-            'Ejemplo: MONGODB_URI="mongodb+srv://USER:PASS@cluster0.mongodb.net/?retryWrites=true&w=majority"'
-        );
-    }
-
-    if (globalAny._mongo.promise) return globalAny._mongo.promise;
-    return await _createClientPromise(uri);
+    return clientPromise;
 }
 
 export async function getDb() {
     const client = await getClient();
-    // Determinar el nombre de la BD: usar MONGODB_DB si está definido,
-    // si no, intentar extraerlo de la URI.
-    let dbName = process.env.MONGODB_DB;
-    if (!dbName) {
-        const uri = process.env.MONGODB_URI || '';
-        const lastSegment = uri.split('/').pop() || '';
-        dbName = lastSegment.includes('?') ? lastSegment.split('?')[0] : lastSegment;
-    }
-    // Si dbName está vacío, client.db(undefined) usa la BD por defecto de la URI
-    return client.db(dbName || undefined);
+    return client.db(dbName);
 }
 
 export default getDb;

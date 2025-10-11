@@ -14,20 +14,98 @@ export async function GET() {
 
 // POST a new product
 export async function POST(request) {
-    const { nombre, descripcion, precio, stock, imageUrl } = await request.json();
+    let body;
     try {
-        const created = await Product.create({ nombre, descripcion, precio, stock, imageUrl });
+        body = await request.json();
+    } catch (err) {
+        return NextResponse.json({ message: 'JSON inválido en el cuerpo de la petición' }, { status: 400 });
+    }
+
+    const { nombre, descripcion, precio, stock, imageUrl } = body || {};
+
+    // Validaciones básicas del lado del servidor para dar errores claros al cliente
+    if (
+        !nombre || String(nombre).trim() === '' ||
+        !descripcion || String(descripcion).trim() === '' || // Añadido: descripcion es requerida
+        precio === undefined || // Añadido: precio es requerido
+        stock === undefined // Añadido: stock es requerido
+    ) {
+        // Mensaje de error más genérico para campos faltantes
+        return NextResponse.json({ message: 'Faltan campos obligatorios: nombre, descripcion, precio, stock, imagenUrl' }, { status: 400 });
+    }
+
+    const precioNum = precio === undefined ? undefined : Number(precio);
+    if (precio !== undefined && !Number.isFinite(precioNum)) {
+        return NextResponse.json({ message: 'El campo "precio" debe ser un número válido' }, { status: 400 });
+    }
+
+    const stockNum = stock === undefined ? undefined : Number(stock);
+    if (stock !== undefined && !Number.isFinite(stockNum)) {
+        return NextResponse.json({ message: 'El campo "stock" debe ser un número válido' }, { status: 400 });
+    }
+
+    // Validar imagenUrl (el validador de Atlas requiere 'imagenUrl' y un patrón http/https)
+    const imagen = body.imageUrl || body.imagenUrl;
+    if (!imagen || String(imagen).trim() === '') {
+        return NextResponse.json({ message: 'El campo "imagenUrl" es obligatorio y debe ser una URL válida (http/https)' }, { status: 400 });
+    }
+
+    // Validar mínimo 0 según el esquema
+    if (precioNum !== undefined && precioNum < 0) {
+        return NextResponse.json({ message: 'El campo "precio" debe ser mayor o igual a 0' }, { status: 400 });
+    }
+    if (stockNum !== undefined && stockNum < 0) {
+        return NextResponse.json({ message: 'El campo "stock" debe ser mayor o igual a 0' }, { status: 400 });
+    }
+
+    try {
+        const created = await Product.create({ nombre, descripcion, precio: precioNum, stock: stockNum, imageUrl: imagen });
         return NextResponse.json(created, { status: 201 });
     } catch (error) {
-        return NextResponse.json({ message: error.message }, { status: 500 });
+        // Si la función del modelo lanzó un error con status, reusarlo
+        if (error && error.status) {
+            return NextResponse.json({ message: error.message }, { status: error.status });
+        }
+
+        // Si Mongo devolvió detalles de validación (errInfo), extraer y dar formato legible
+        if (error && error.code === 121 && error.errInfo) {
+            const info = error.errInfo;
+            const details = info.details || info;
+            // Construir mensajes legibles a partir de details
+            let human = [];
+            try {
+                if (Array.isArray(details)) {
+                    human = details.map(d => `${d.property}: ${d.reason}`);
+                } else if (details && typeof details === 'object') {
+                    human = Object.keys(details).map(k => `${k}: ${JSON.stringify(details[k])}`);
+                } else {
+                    human = [String(details)];
+                }
+            } catch (e) {
+                human = [String(details)];
+            }
+
+            const message = human.length ? human.join(' | ') : 'Document failed validation';
+            console.error('Mongo validation details:', JSON.stringify(details, null, 2));
+            return NextResponse.json({ message, details }, { status: 400 });
+        }
+
+        console.error('Unhandled error en POST /api/products:', error);
+        return NextResponse.json({ message: error.message || 'Error interno' }, { status: 500 });
     }
 }
 
 // PUT (update) a product
 export async function PUT(request) {
-    const { id, nombre, descripcion, precio, stock, imageUrl } = await request.json();
+    // Corregido: Usar _id para consistencia con MongoDB
+    const { _id, nombre, descripcion, precio, stock, imageUrl } = await request.json();
+
+    if (!_id) {
+        return NextResponse.json({ message: "El ID del producto es requerido para actualizar" }, { status: 400 });
+    }
+
     try {
-        const updated = await Product.updateById(id, { nombre, descripcion, precio, stock, imageUrl });
+        const updated = await Product.updateById(_id, { nombre, descripcion, precio, stock, imageUrl });
         if (!updated) {
             return NextResponse.json({ message: "Producto no encontrado" }, { status: 404 });
         }
@@ -41,6 +119,12 @@ export async function PUT(request) {
 export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+
+    // Validar que el ID es un ObjectId válido antes de proceder
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+        return NextResponse.json({ message: "ID de producto inválido" }, { status: 400 });
+    }
+
     try {
         const deleted = await Product.deleteById(id);
         if (!deleted) {

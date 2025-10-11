@@ -23,11 +23,11 @@ export async function findById(id) {
   }
 }
 
-export async function create(payload) {
+export async function create(payload, options = {}) {
   const col = await collection();
   const now = new Date();
   const doc = { ...payload, createdAt: now, updatedAt: now };
-  const res = await col.insertOne(doc);
+  const res = await col.insertOne(doc, options);
   return { _id: res.insertedId, ...doc };
 }
 

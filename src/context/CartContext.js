@@ -1,53 +1,50 @@
-"use client";
+'use client';
 
-import { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 const CartContext = createContext();
+
+export const useCart = () => useContext(CartContext);
 
 export const CartProvider = ({ children }) => {
     const [cartItems, setCartItems] = useState([]);
 
-    const addToCart = (product) => {
-        setCartItems((prevItems) => {
-            const existingItem = prevItems.find((item) => item.id === product.id);
+    const addToCart = (product, quantity) => {
+        setCartItems(prevItems => {
+            const existingItem = prevItems.find(item => item._id === product._id);
+
             if (existingItem) {
-                return prevItems.map((item) =>
-                    item.id === product.id
-                        ? { ...item, quantity: item.quantity + product.quantity }
+                // Si el producto ya está en el carrito, actualiza la cantidad
+                return prevItems.map(item =>
+                    item._id === product._id
+                        ? { ...item, quantity: item.quantity + quantity }
                         : item
                 );
-            }
-            return [...prevItems, product];
-        });
-    };
+            } else {
+                // Si es un producto nuevo, lo agrega al carrito
+                // CORRECCIÓN CLAVE: Asegurarse de que el precio se guarde como número
+                const numericPrice = typeof product.precio === 'number'
+                    ? product.precio
+                    : parseFloat(product.precio) || 0;
 
-    const removeFromCart = (productId) => {
-        setCartItems((prevItems) => prevItems.filter((item) => item.id !== productId));
+                return [...prevItems, { ...product, precio: numericPrice, quantity }];
+            }
+        });
     };
 
     const clearCart = () => {
         setCartItems([]);
     };
 
-    const itemCount = useMemo(() => {
-        return cartItems.reduce((total, item) => total + item.quantity, 0);
-    }, [cartItems]);
-
     const value = {
         cartItems,
         addToCart,
-        removeFromCart,
         clearCart,
-        itemCount,
     };
 
-    return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
-};
-
-export const useCart = () => {
-    const context = useContext(CartContext);
-    if (context === undefined) {
-        throw new Error('useCart must be used within a CartProvider');
-    }
-    return context;
+    return (
+        <CartContext.Provider value={value}>
+            {children}
+        </CartContext.Provider>
+    );
 };

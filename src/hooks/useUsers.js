@@ -11,7 +11,7 @@ export function useUsers() {
 const fetchUsers = async () => {
     try {
         setLoading(true);
-        const res = await fetch("/api/auth");
+        const res = await fetch("/superUser/gestion/api");
         if (!res.ok) throw new Error("Error al cargar usuarios");
         const data = await res.json();
         setUsers(data);
