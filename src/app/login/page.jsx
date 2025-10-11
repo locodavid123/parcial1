@@ -25,7 +25,7 @@ export default function Login() {
     const redirectByRole = (rol) => {
         const routes = {
             SUPERUSER: '/superUser',
-            administador: '/admin',
+            Administrador: '/admin',
             Cliente: '/clientes',
         };
         router.push(routes[rol] || '/');
