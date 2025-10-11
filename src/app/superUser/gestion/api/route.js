@@ -5,9 +5,14 @@ import { getClient, getDb } from '@/app/config/mongo';
 import { Int32 } from 'mongodb'; // 1. Importar Int32
 import bcrypt from 'bcryptjs';
 
-export async function GET() {
+export async function GET(request) {
     try {
-        const users = await findAll();
+        const { searchParams } = new URL(request.url);
+        const rol = searchParams.get('rol');
+
+        const query = rol ? { rol } : {};
+
+        const users = await findAll(query);
         // Ocultar la contraseña de todos los usuarios en la respuesta
         const safeUsers = users.map(user => {
             const { contraseña, ...safeUser } = user;
@@ -58,12 +63,19 @@ export async function POST(request) {
             // En producción, hashea la contraseña antes de guardarla
             const hashed = await bcrypt.hash(String(contraseña), 10);
 
-            // 2. Convertir el teléfono a un número entero de 32 bits para que coincida con el esquema de la BD.
-            // Usamos parseInt para convertir el string a número, y new Int32 para forzar el tipo BSON.
-            const telefonoNumerico = new Int32(parseInt(telefono, 10));
-
-            const userDoc = { nombre, correo, contraseña: hashed, rol, telefono: telefonoNumerico };
+            // 2. Guardar el teléfono como string
+            const userDoc = { nombre, correo, contraseña: hashed, rol, telefono };
             createdUser = await createUser(userDoc, { session });
+
+            // Si el rol es 'Cliente' o 'Administrador', crear también en la colección 'clientes'
+            if (rol === 'Cliente' || rol === 'Administrador') {
+                await createClient({
+                    nombre: createdUser.nombre,
+                    correo: createdUser.correo,
+                    telefono: telefono,
+                    usuario_id: createdUser._id // Vincular con el usuario recién creado
+                }, { session });
+            }
 
         });
 
@@ -87,43 +99,47 @@ export async function PUT(request) {
     const session = client.startSession();
     try {
         // Usar _id para ser consistente con la base de datos
-        const { _id, rol } = await request.json();
+        const payload = await request.json();
+        const { _id, rol, nombre, correo, telefono } = payload;
 
-        if (!_id || !rol) {
+        if (!_id) {
             return NextResponse.json(
-                { message: "Se requiere el ID del usuario y el nuevo rol." },
+                { message: "Se requiere el ID del usuario." },
                 { status: 400 }
             );
         }
 
         // Iniciar una transacción para asegurar la atomicidad de la operación
         let finalUpdatedUser;
+        const updateData = {};
+        if (rol) updateData.rol = rol;
+        if (nombre) updateData.nombre = nombre;
+        if (correo) updateData.correo = correo;
+        if (telefono) updateData.telefono = telefono;
+
+        if (Object.keys(updateData).length === 0) {
+            return NextResponse.json({ message: "No se proporcionaron datos para actualizar." }, { status: 400 });
+        }
 
         await session.withTransaction(async () => {
-            const updatedUser = await updateUserById(_id, { rol }, { session });
+            const updatedUser = await updateUserById(_id, updateData, { session });
             if (!updatedUser) {
                 const error = new Error("Usuario no encontrado.");
                 error.status = 404;
                 throw error;
             }
 
-            // El teléfono puede no estar presente si el usuario se creó sin él.
-            // Aseguramos que el tipo sea correcto o un valor por defecto numérico.
-            const telefonoNumerico = updatedUser.telefono 
-                ? new Int32(parseInt(String(updatedUser.telefono), 10)) 
-                : new Int32(0);
-
-            // Si el nuevo rol es Administrador, asegurarse de que exista en la colección 'clientes'
-            if (rol === 'Administrador') {
+            // Si el rol es Cliente o Administrador, asegurarse de que exista en la colección 'clientes'
+            if (updateData.rol === 'Cliente' || updateData.rol === 'Administrador' || nombre || correo || telefono) {
                 const db = await getDb();
                 const clientCollection = db.collection('clientes');
                 // Usar upsert: si no existe un cliente con ese usuario_id, lo crea.
                 await clientCollection.updateOne(
                     { usuario_id: updatedUser._id },
                     { $set: { 
-                        nombre: updatedUser.nombre, 
-                        correo: updatedUser.correo, 
-                        telefono: telefonoNumerico
+                        nombre: nombre || updatedUser.nombre, 
+                        correo: correo || updatedUser.correo, 
+                        telefono: telefono || updatedUser.telefono
                     } },
                     { upsert: true, session }
                 );

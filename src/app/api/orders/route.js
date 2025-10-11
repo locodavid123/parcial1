@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { ObjectId } from 'mongodb';
+import { ObjectId, Int32 } from 'mongodb';
 import getDb, { getClient } from '@/app/config/mongo';
+import { create as createClient } from '@/models/Client'; // Importar el modelo de Cliente
 
 function toObjectId(id) {
     try {

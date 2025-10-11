@@ -1,17 +1,60 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
 import Link from 'next/link';
-import { useClients } from '@/hooks/useClients';
+
+// Hook personalizado para obtener solo clientes
+const useClients = () => {
+    const [clients, setClients] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const fetchClients = useCallback(async () => {
+        setLoading(true);
+        try {
+            // Usamos el endpoint de gestión con el filtro de rol
+            const res = await fetch('/superUser/gestion/api?rol=Cliente');
+            if (!res.ok) {
+                throw new Error('Error al obtener los clientes');
+            }
+            const data = await res.json();
+            setClients(data);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchClients();
+    }, [fetchClients]);
+
+    return { clients, loading, error, fetchClients };
+};
 
 export default function ClientManagementPage() {
+    const router = useRouter();
     const { clients, loading, error, fetchClients } = useClients();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [currentClient, setCurrentClient] = useState({ id: null, nombre: '', correo: '', telefono: '' });
+    const [currentClient, setCurrentClient] = useState({ _id: null, nombre: '', correo: '', telefono: '', contraseña: '', rol: 'Cliente' });
     const [apiError, setApiError] = useState('');
+
+    useEffect(() => {
+        const loggedInUser = localStorage.getItem('loggedInUser');
+        if (loggedInUser) {
+            const parsedUser = JSON.parse(loggedInUser);
+            if (parsedUser.rol !== 'SUPERUSER') {
+                router.push('/');
+            }
+        } else {
+            router.push('/login');
+        }
+    }, [router]);
 
     const handleOpenModal = (client = null) => {
         setApiError('');
@@ -20,7 +63,7 @@ export default function ClientManagementPage() {
             setCurrentClient(client);
         } else {
             setIsEditing(false);
-            setCurrentClient({ id: null, nombre: '', correo: '', telefono: '' });
+            setCurrentClient({ _id: null, nombre: '', correo: '', telefono: '', contraseña: '', rol: 'Cliente' });
         }
         setIsModalOpen(true);
     };
@@ -39,13 +82,23 @@ export default function ClientManagementPage() {
         setApiError('');
 
         const method = isEditing ? 'PUT' : 'POST';
-        const endpoint = '/superUser/clientes/api';
+        const endpoint = '/superUser/gestion/api';
+
+        // Para la edición, enviar solo los campos modificables, no el rol.
+        const payload = isEditing 
+            ? { 
+                _id: currentClient._id, 
+                nombre: currentClient.nombre, 
+                correo: currentClient.correo, 
+                telefono: currentClient.telefono 
+            } 
+            : currentClient;
 
         try {
             const res = await fetch(endpoint, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(currentClient),
+                body: JSON.stringify(payload),
             });
 
             if (!res.ok) {
@@ -64,7 +117,7 @@ export default function ClientManagementPage() {
     const handleDelete = async (clientId, clientName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar a "${clientName}"?`)) {
             try {
-                const res = await fetch(`/superUser/clientes/api?id=${clientId}`, { method: 'DELETE' });
+                const res = await fetch(`/superUser/gestion/api?id=${clientId}`, { method: 'DELETE' });
                 if (!res.ok) {
                     const errorData = await res.json();
                     throw new Error(errorData.message || 'Error al eliminar el cliente');
@@ -74,6 +127,20 @@ export default function ClientManagementPage() {
             } catch (err) {
                 alert(`Error: ${err.message}`);
             }
+        }
+    };
+
+    // Función para dar estilo a los roles
+    const getRoleClass = (rol) => {
+        switch (rol) {
+            case 'SUPERUSER':
+                return 'bg-red-200 text-red-800';
+            case 'Administrador':
+                return 'bg-yellow-200 text-yellow-800';
+            case 'Cliente':
+                return 'bg-green-200 text-green-800';
+            default:
+                return 'bg-gray-200 text-gray-800';
         }
     };
 
@@ -94,7 +161,7 @@ export default function ClientManagementPage() {
                 </div>
 
                 <div className="bg-white p-6 rounded-lg shadow-md">
-                    {loading && <p>Cargando clientes...</p>}
+                    {loading && <p className="text-center text-gray-600">Cargando clientes...</p>}
                     {error && <p className="text-red-500">{error}</p>}
                     {!loading && !error && (
                         <div className="overflow-x-auto">
@@ -105,19 +172,25 @@ export default function ClientManagementPage() {
                                         <th className="text-black py-3 px-6 text-left">Nombre</th>
                                         <th className="text-black py-3 px-6 text-left">Correo</th>
                                         <th className="text-black py-3 px-6 text-left">Teléfono</th>
-                                        <th className="text-black py-3 px-6 text-center">Acciones</th>
+                                        <th className="text-black py-3 px-6 text-center">Rol</th>
+                                        <th className="text-black py-3 px-6 text-center">Acciones</th>                                    
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {clients.map((client) => (
-                                        <tr key={client.id} className="border-b hover:bg-gray-50">
-                                            <td className="text-black py-3 px-6">{client.id}</td>
+                                        <tr key={client._id} className="border-b hover:bg-gray-50">
+                                            <td className="text-black py-3 px-6">{client._id}</td>
                                             <td className="text-black py-3 px-6 font-medium">{client.nombre}</td>
                                             <td className="text-black py-3 px-6">{client.correo}</td>
                                             <td className="text-black py-3 px-6">{client.telefono}</td>
-                                            <td className="text-black py-3 px-6 text-center">
+                                            <td className="py-3 px-6 text-center">
+                                                <span className={`py-1 px-3 rounded-full text-xs font-semibold ${getRoleClass(client.rol)}`}>
+                                                    {client.rol}
+                                                </span>
+                                            </td>
+                                             <td className="text-black py-3 px-6 text-center">                                           
                                                 <button onClick={() => handleOpenModal(client)} className="bg-indigo-500 text-white py-1 px-3 rounded text-xs hover:bg-indigo-600 mr-2">Editar</button>
-                                                <button onClick={() => handleDelete(client.id, client.nombre)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">Eliminar</button>
+                                                <button onClick={() => handleDelete(client._id, client.nombre)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">Eliminar</button>
                                             </td>
                                         </tr>
                                     ))}
@@ -132,7 +205,7 @@ export default function ClientManagementPage() {
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
                     <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
-                        <h2 className="text-black text-2xl font-bold mb-6">{isEditing ? 'Editar' : 'Crear'} Cliente</h2>
+                        <h2 className="text-black text-2xl font-bold mb-6">{isEditing ? 'Editar Cliente' : 'Crear Cliente'}</h2>
                         <form onSubmit={handleSubmit}>
                             <div className="mb-4">
                                 <label htmlFor="nombre" className="text-black block text-sm font-bold mb-2">Nombre</label>
@@ -142,6 +215,10 @@ export default function ClientManagementPage() {
                                 <label htmlFor="correo" className="text-black block text-sm font-bold mb-2">Correo Electrónico</label>
                                 <input type="email" name="correo" value={currentClient.correo} onChange={handleInputChange} className="text-black shadow border rounded w-full py-2 px-3" required />
                             </div>
+                            {!isEditing && <div className="mb-4">
+                                <label htmlFor="contraseña" className="text-black block text-sm font-bold mb-2">Contraseña</label>
+                                <input type="password" name="contraseña" value={currentClient.contraseña} onChange={handleInputChange} className="text-black shadow border rounded w-full py-2 px-3" required />
+                            </div>}
                             <div className="mb-6">
                                 <label htmlFor="telefono" className="text-black block text-sm font-bold mb-2">Teléfono</label>
                                 <input type="text" name="telefono" value={currentClient.telefono} onChange={handleInputChange} className="text-black shadow border rounded w-full py-2 px-3" required />
