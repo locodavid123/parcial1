@@ -86,12 +86,20 @@ export default function ClientePanel() {
                         {pedidos.length > 0 ? (
                             <div className="space-y-6">
                                 {pedidos.map(pedido => (
-                                    <div key={pedido.id} className="border border-gray-200 p-4 rounded-md">
+                                    <div key={pedido._id} className="border border-gray-200 p-4 rounded-md bg-white/60">
                                         <div className="flex justify-between items-center mb-2">
-                                            <p className="font-bold text-lg text-gray-700">Pedido #{pedido.id}</p>
-                                            <p className={`px-3 py-1 rounded-full text-sm font-semibold ${pedido.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{pedido.status}</p>
+                                            <p className="font-bold text-lg text-gray-700">Pedido #{pedido._id.slice(-6)}</p>
+                                            <p className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                                pedido.estatus === 'pendiente' ? 'bg-yellow-200 text-yellow-800' :
+                                                pedido.estatus === 'cancelado' ? 'bg-red-200 text-red-800' :
+                                                'bg-green-200 text-green-800'
+                                            }`}>
+                                                {/* Capitaliza la primera letra del estado para mostrarlo */}
+                                                {pedido.estatus ? pedido.estatus.charAt(0).toUpperCase() + pedido.estatus.slice(1) : 'Desconocido'}
+                                            </p>
                                         </div>
-                                        <p className="text-gray-600">Fecha: {new Date(pedido.fecha).toLocaleDateString()}</p>
+                                        {/* Asegurarse de que el campo fecha exista antes de mostrarlo */}
+                                        <p className="text-gray-600">Fecha: {pedido.fecha ? new Date(pedido.fecha).toLocaleDateString() : 'N/A'}</p>
                                         <p className="text-gray-800 font-semibold">Total: ${parseFloat(pedido.total).toFixed(2)}</p>
                                     </div>
                                 ))}

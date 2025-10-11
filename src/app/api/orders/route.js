@@ -117,7 +117,7 @@ export async function POST(request) {
                 cliente_id: cliente._id,
                 fecha: new Date(),
                 total: new Double(totalCalculado),
-                estatus: 'pendiente',
+                estatus: 'pendiente', // Asegurarse de que esté en minúscula como espera el enum de la BD
                 // Mapeamos al formato final para la BD, asegurando que el ID es un ObjectId
                 detalles: productosParaPedido.map(p => ({
                     producto_id: p._id, // Ya es un ObjectId
@@ -147,7 +147,10 @@ export async function POST(request) {
 }
 
 export async function PUT(request) {
-    const { id, status } = await request.json();
+    // CORRECCIÓN: El ID se envía como un parámetro de búsqueda en la URL, no en el cuerpo.
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const { status } = await request.json();
     const client = await getClient();
     const session = client.startSession();
 
@@ -159,7 +162,8 @@ export async function PUT(request) {
             const pedidosCol = db.collection('pedidos');
             const productosCol = db.collection('productos');
 
-            if (status.toLowerCase() === 'cancelado') {
+            // CORRECCIÓN: Siempre convertir a minúsculas para coincidir con el enum de la BD.
+            if (status && status.toLowerCase() === 'cancelado') {
                 // devolver stock
                 const pedido = await pedidosCol.findOne({ _id: toObjectId(id) }, { session });
                 if (!pedido) throw new Error('Pedido no encontrado');
@@ -173,12 +177,13 @@ export async function PUT(request) {
 
             const res = await pedidosCol.findOneAndUpdate(
                 { _id: toObjectId(id) },
-                { $set: { estatus: status.toLowerCase(), updatedAt: new Date() } },
+                // CORRECCIÓN: Siempre guardar el estado en minúsculas.
+                { $set: { estatus: status.toLowerCase() } },
                 { returnDocument: 'after', session }
             );
 
-            if (!res.value) throw new Error('Pedido no encontrado');
-            updatedPedido = res.value;
+            if (!res) throw new Error('Pedido no encontrado al intentar actualizar.');
+            updatedPedido = res;
         });
 
         return NextResponse.json(updatedPedido);
@@ -205,11 +210,14 @@ export async function DELETE(request) {
             const pedido = await pedidosCol.findOne({ _id: toObjectId(id) }, { session });
             if (!pedido) throw new Error('Pedido no encontrado');
 
-            // devolver stock
-            for (const item of pedido.detalles || []) {
-                // CORRECCIÓN: Asegurarse de que el ID del producto es un ObjectId válido.
-                // Misma lógica que en la función PUT para garantizar la consistencia.
-                await productosCol.updateOne({ _id: toObjectId(item.producto_id) }, { $inc: { stock: item.cantidad } }, { session });
+            // Devolver stock solo si el pedido no estaba ya cancelado
+            // CORRECCIÓN: Comparar con el valor en minúsculas.
+            if (pedido.estatus !== 'cancelado') {
+                for (const item of pedido.detalles || []) {
+                    // CORRECCIÓN: Asegurarse de que el ID del producto es un ObjectId válido.
+                    // Misma lógica que en la función PUT para garantizar la consistencia.
+                    await productosCol.updateOne({ _id: toObjectId(item.producto_id) }, { $inc: { stock: item.cantidad } }, { session });
+                }
             }
 
             // eliminar pedido

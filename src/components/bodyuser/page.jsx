@@ -43,7 +43,7 @@ const ProductCard = ({ product, addToCart }) => {
                     <span className="text-xl font-bold text-gray-900">${(typeof product.precio === 'number' ? product.precio : parseFloat(product.precio) || 0).toFixed(2)}</span>
                     <div className="flex items-center">
                         <button onClick={() => handleQuantityChange(-1)} className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l">-</button>
-                        <span className="px-4 py-1 bg-gray-100">{quantity}</span>
+                        <span className="px-4 py-1 bg-gray-100 text-gray-800 font-semibold">{quantity}</span>
                         <button onClick={() => handleQuantityChange(1)} className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r">+</button>
                     </div>
                 </div>
