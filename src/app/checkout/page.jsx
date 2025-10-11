@@ -87,15 +87,15 @@ export default function CheckoutPage() {
                                 // CORRECCIÓN: Usar una key única y robusta para evitar el warning de React.
                                 <li key={item._id || item.id} className="py-4 flex justify-between items-center">
                                     <div>
-                                        <p className="font-semibold">{item.nombre}</p>
-                                        <p className="text-sm text-gray-600">Cantidad: {item.quantity}</p>
+                                        <p className="font-semibold text-gray-800">{item.nombre}</p>
+                                        <p className="text-sm text-gray-700">Cantidad: {item.quantity}</p>
                                     </div>
                                     {/* CORRECCIÓN: Asegurarse de que item.precio sea un número para el cálculo. */}
-                                    <p className="font-semibold">${(parseFloat(item.precio) * item.quantity).toFixed(2)}</p>
+                                    <p className="font-semibold text-gray-900">${(parseFloat(item.precio) * item.quantity).toFixed(2)}</p>
                                 </li>
                             ))}
                         </ul>
-                        <div className="text-right text-2xl font-bold mb-6">
+                        <div className="text-right text-2xl font-bold mb-6 text-gray-900">
                             Total: ${total.toFixed(2)}
                         </div>
                         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
