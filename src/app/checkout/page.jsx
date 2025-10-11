@@ -32,15 +32,18 @@ export default function CheckoutPage() {
         setError('');
 
         const orderData = {
-            cliente_id: user.id, // ID del usuario logueado
+            // CORRECCIÓN CRÍTICA: El objeto 'user' de localStorage tiene 'id', no '_id'.
+            // La API espera '_id', por lo que debemos usar el valor correcto.
+            cliente_id: user.id,
             cliente_info: { // Información del cliente para la colección 'clientes'
                 nombre: user.nombre,
                 correo: user.correo,
                 telefono: user.telefono || '0000000000', // Asegurarse de que el teléfono exista
             },
             productos: cartItems.map(item => ({
-                // CORRECCIÓN: Usar item._id si existe, de lo contrario usar item.id. Esto soluciona el error de ID undefined.
-                producto_id: item._id || item.id,
+                // CORRECCIÓN DEFINITIVA: El `_id` del item es un objeto ObjectId de MongoDB.
+                // La API espera un string para convertirlo de nuevo a ObjectId.
+                producto_id: String(item._id),
                 cantidad: item.quantity,
             })),
         };

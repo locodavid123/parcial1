@@ -18,6 +18,7 @@ export default function ClientePanel() {
         const loggedInUser = localStorage.getItem('loggedInUser');
         if (loggedInUser) {
             const parsedUser = JSON.parse(loggedInUser);
+            // CORRECCIÓN: El rol se guarda como 'Cliente' (con mayúscula inicial).
             if (parsedUser.rol === 'Cliente') {
                 setUser(parsedUser);
                 setLoading(false);

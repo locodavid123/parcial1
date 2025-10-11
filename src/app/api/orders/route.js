@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ObjectId, Int32 } from 'mongodb';
+import { ObjectId, Int32, Double } from 'mongodb';
 import getDb, { getClient } from '@/app/config/mongo';
 import { create as createClient } from '@/models/Client'; // Importar el modelo de Cliente
 
@@ -81,31 +81,56 @@ export async function POST(request) {
 
             // 2. Obtener precios y comprobar stock
             const productIds = productos.map(p => toObjectId(p.producto_id)).filter(Boolean);
-            const prodsFromDb = await productosCol.find({ _id: { $in: productIds } }, { session }).toArray();
+            if (productIds.length !== productos.length) {
+                throw new Error('Uno o más IDs de producto son inválidos.');
+            }
+            
+            const prodsFromDbMap = new Map(
+                (await productosCol.find({ _id: { $in: productIds } }, { session }).toArray())
+                .map(p => [String(p._id), p])
+            );
 
             let totalCalculado = 0;
-            const productosConPrecioDB = productos.map((p) => {
-                const prod = prodsFromDb.find(dbp => dbp._id.equals(toObjectId(p.producto_id)));
-                if (!prod) throw new Error(`Producto con ID ${p.producto_id} no encontrado.`);
-                if ((prod.stock || 0) < p.cantidad) throw new Error(`Stock insuficiente para "${prod.nombre || prod._id}". Disponible: ${prod.stock || 0}, Solicitado: ${p.cantidad}.`);
-                totalCalculado += (prod.precio || 0) * p.cantidad;
-                return { producto_id: prod._id, cantidad: p.cantidad, precio_unitario: prod.precio || 0 };
-            });
+            const productosParaPedido = [];
+
+            for (const p of productos) {
+                const prodDb = prodsFromDbMap.get(p.producto_id);
+                if (!prodDb) {
+                    throw new Error(`Producto con ID ${p.producto_id} no encontrado.`);
+                }
+                if ((prodDb.stock || 0) < p.cantidad) {
+                    throw new Error(`Stock insuficiente para "${prodDb.nombre}". Disponible: ${prodDb.stock || 0}, Solicitado: ${p.cantidad}.`);
+                }
+                
+                totalCalculado += (prodDb.precio || 0) * p.cantidad;
+                
+                productosParaPedido.push({
+                    // Usamos el ObjectId directamente para la lógica interna
+                    _id: prodDb._id, 
+                    cantidad: p.cantidad,
+                    precio_unitario: prodDb.precio || 0,
+                });
+            }
 
             // 3. Crear pedido
             const pedidoDoc = {
                 cliente_id: cliente._id,
-                total: totalCalculado,
-                status: 'Pendiente',
-                productos: productosConPrecioDB,
-                createdAt: new Date(),
-                updatedAt: new Date()
+                fecha: new Date(),
+                total: new Double(totalCalculado),
+                estatus: 'pendiente',
+                // Mapeamos al formato final para la BD, asegurando que el ID es un ObjectId
+                detalles: productosParaPedido.map(p => ({
+                    producto_id: p._id, // Ya es un ObjectId
+                    cantidad: new Int32(p.cantidad),
+                    precio_unitario: new Double(p.precio_unitario),
+                })),
             };
             const pedidoInsert = await pedidosCol.insertOne(pedidoDoc, { session });
 
             // 4. Actualizar stock
-            for (const item of productosConPrecioDB) {
-                await productosCol.updateOne({ _id: item.producto_id }, { $inc: { stock: -item.cantidad } }, { session });
+            for (const item of productosParaPedido) {
+                // Usamos el _id que guardamos previamente, que es un ObjectId
+                await productosCol.updateOne({ _id: item._id }, { $inc: { stock: -item.cantidad } }, { session });
             }
 
             resultPedido = { pedidoId: pedidoInsert.insertedId, clienteId: cliente._id };
@@ -114,6 +139,7 @@ export async function POST(request) {
         return NextResponse.json({ message: 'Pedido creado exitosamente', ...resultPedido }, { status: 201 });
     } catch (error) {
         console.error('Error al crear el pedido:', error);
+        // Devolvemos el mensaje de error específico que lanzamos en las validaciones
         return NextResponse.json({ message: error.message }, { status: 500 });
     } finally {
         await session.endSession();
@@ -133,18 +159,21 @@ export async function PUT(request) {
             const pedidosCol = db.collection('pedidos');
             const productosCol = db.collection('productos');
 
-            if (status === 'Cancelado') {
+            if (status.toLowerCase() === 'cancelado') {
                 // devolver stock
                 const pedido = await pedidosCol.findOne({ _id: toObjectId(id) }, { session });
                 if (!pedido) throw new Error('Pedido no encontrado');
-                for (const item of pedido.productos || []) {
-                    await productosCol.updateOne({ _id: item.producto_id }, { $inc: { stock: item.cantidad } }, { session });
+                for (const item of pedido.detalles || []) {
+                    // CORRECCIÓN: Asegurarse de que el ID del producto es un ObjectId válido.
+                    // Aunque `item.producto_id` ya debería ser un ObjectId, esta conversión
+                    // explícita previene errores de tipo inesperados.
+                    await productosCol.updateOne({ _id: toObjectId(item.producto_id) }, { $inc: { stock: item.cantidad } }, { session });
                 }
             }
 
             const res = await pedidosCol.findOneAndUpdate(
                 { _id: toObjectId(id) },
-                { $set: { status, updatedAt: new Date() } },
+                { $set: { estatus: status.toLowerCase(), updatedAt: new Date() } },
                 { returnDocument: 'after', session }
             );
 
@@ -177,8 +206,10 @@ export async function DELETE(request) {
             if (!pedido) throw new Error('Pedido no encontrado');
 
             // devolver stock
-            for (const item of pedido.productos || []) {
-                await productosCol.updateOne({ _id: item.producto_id }, { $inc: { stock: item.cantidad } }, { session });
+            for (const item of pedido.detalles || []) {
+                // CORRECCIÓN: Asegurarse de que el ID del producto es un ObjectId válido.
+                // Misma lógica que en la función PUT para garantizar la consistencia.
+                await productosCol.updateOne({ _id: toObjectId(item.producto_id) }, { $inc: { stock: item.cantidad } }, { session });
             }
 
             // eliminar pedido
