@@ -18,7 +18,7 @@ export default function ClientePanel() {
         const loggedInUser = localStorage.getItem('loggedInUser');
         if (loggedInUser) {
             const parsedUser = JSON.parse(loggedInUser);
-            if (parsedUser.rol === 'cliente') {
+            if (parsedUser.rol === 'Cliente') {
                 setUser(parsedUser);
                 setLoading(false);
             } else {
