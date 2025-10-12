@@ -11,8 +11,8 @@ export function useUsers() {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            // Modificación: Añadimos el parámetro 'rol=Cliente' a la URL para filtrar desde el servidor.
-            const res = await fetch("/superUser/gestion/api?rol=Cliente");
+            // SOLUCIÓN: Se elimina el filtro para que obtenga TODOS los usuarios.
+            const res = await fetch("/superUser/gestion/api");
             if (!res.ok) {
                 const errorData = await res.json();
                 throw new Error(errorData.message || "Error al cargar los usuarios");
