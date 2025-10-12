@@ -1,114 +1,176 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Importar el contexto del carrito
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
 
-export default function ClientePanel() {
+export default function ClientePage() {
     const [user, setUser] = useState(null);
     const [pedidos, setPedidos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [showPedidos, setShowPedidos] = useState(false);
+    const [cancelingId, setCancelingId] = useState(null); // Para el estado de carga del botón cancelar
     const router = useRouter();
 
     useEffect(() => {
         const loggedInUser = localStorage.getItem('loggedInUser');
-        if (loggedInUser) {
-            const parsedUser = JSON.parse(loggedInUser);
-            // CORRECCIÓN: El rol se guarda como 'Cliente' (con mayúscula inicial).
-            if (parsedUser.rol === 'Cliente') {
-                setUser(parsedUser);
-                setLoading(false);
-            } else {
-                // Si no es un cliente, lo redirige a la página principal
-                router.push('/');
-            }
-        } else {
-            // Si no ha iniciado sesión, lo redirige al login
+        if (!loggedInUser) {
             router.push('/login');
+        } else {
+            const parsedUser = JSON.parse(loggedInUser);
+            setUser(parsedUser);
+            fetchPedidos(parsedUser.id);
         }
     }, [router]);
 
-    const handleVerPedidos = async () => {
-        if (showPedidos) {
-            setShowPedidos(false);
-            return;
-        }
-
+    const fetchPedidos = async (clienteId) => {
+        setLoading(true);
         setError('');
         try {
-            // La API de pedidos ya está preparada para filtrar por el ID del usuario
-            const res = await fetch(`/api/orders?cliente_id=${user.id}`);
+            // Pasamos el ID del usuario para filtrar los pedidos
+            const res = await fetch(`/api/orders?cliente_id=${clienteId}`);
             if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Error al obtener los pedidos');
+                throw new Error('No se pudieron cargar los pedidos.');
             }
             const data = await res.json();
             setPedidos(data);
-            setShowPedidos(true);
         } catch (err) {
             setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleLogout = () => {
+        if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+            localStorage.removeItem('loggedInUser');
+            router.push('/login');
+        }
+    };
+
+    const handleCancelOrder = async (pedidoId) => {
+        if (!window.confirm('¿Estás seguro de que quieres cancelar este pedido? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        setCancelingId(pedidoId);
+        setError('');
+
+        try {
+            const res = await fetch(`/api/orders?id=${pedidoId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'cancelado' }),
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'No se pudo cancelar el pedido.');
+            }
+
+            // Actualizar la lista de pedidos en el estado para reflejar el cambio
+            setPedidos(prevPedidos =>
+                prevPedidos.map(p => p._id === pedidoId ? { ...p, estatus: 'cancelado' } : p)
+            );
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setCancelingId(null);
         }
     };
 
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <p className="text-xl">Cargando panel...</p>
+                <div className="text-xl">Cargando panel de cliente...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-gradient-to-br from-yellow-50 via-red-50 to-gray-100">
+        <>
             <Headers />
-            <main className="flex-1 container mx-auto p-8 bg-gradient-to-br from-yellow-50 via-red-50 to-gray-100">
-                <h1 className="text-4xl font-bold text-gray-800 mb-2">Panel de Cliente</h1>
-                <p className="text-xl text-gray-600 mb-10">¡Hola, {user?.nombre}!</p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 max-w-lg mx-auto">
-                    <button onClick={handleVerPedidos} className="bg-blue-600 text-white font-bold py-4 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-transform transform hover:scale-105">
-                        {showPedidos ? 'Ocultar Mis Pedidos' : 'Ver Mis Pedidos'}
-                    </button>
-                    <Link href="/" className="bg-green-600 text-white font-bold py-4 px-6 rounded-lg shadow-md hover:bg-green-700 transition-transform transform hover:scale-105 text-center">
-                        Hacer Pedido
-                    </Link>
-                </div>
-
-                {error && <p className="text-red-600 mt-6 text-center bg-red-100 p-3 rounded-lg">{error}</p>}
-
-                {showPedidos && (
-                    <div className="mt-10 bg-white p-6 rounded-lg shadow-lg">
-                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Historial de Pedidos</h2>
-                        {pedidos.length > 0 ? (
-                            <div className="space-y-6">
-                                {pedidos.map(pedido => (
-                                    <div key={pedido._id} className="border border-gray-200 p-4 rounded-md bg-white/60">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <p className="font-bold text-lg text-gray-700">Pedido #{pedido._id.slice(-6)}</p>
-                                            <p className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                                                pedido.estatus === 'pendiente' ? 'bg-yellow-200 text-yellow-800' :
-                                                pedido.estatus === 'cancelado' ? 'bg-red-200 text-red-800' :
-                                                'bg-green-200 text-green-800'
-                                            }`}>
-                                                {/* Capitaliza la primera letra del estado para mostrarlo */}
-                                                {pedido.estatus ? pedido.estatus.charAt(0).toUpperCase() + pedido.estatus.slice(1) : 'Desconocido'}
-                                            </p>
-                                        </div>
-                                        {/* Asegurarse de que el campo fecha exista antes de mostrarlo */}
-                                        <p className="text-gray-600">Fecha: {pedido.fecha ? new Date(pedido.fecha).toLocaleDateString() : 'N/A'}</p>
-                                        <p className="text-gray-800 font-semibold">Total: ${parseFloat(pedido.total).toFixed(2)}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (<p className="text-gray-500">No tienes pedidos registrados.</p>)}
+            <main className="container mx-auto px-4 py-8 min-h-screen">
+                <div className="bg-white p-6 rounded-lg shadow-md max-w-4xl mx-auto">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-800">Panel de Cliente</h1>
+                            <p className="text-gray-600 mt-2">Bienvenido, <span className="font-semibold">{user?.nombre}</span>.</p>
+                            <p className="text-sm text-gray-500">{user?.correo}</p>
+                        </div>
+                        <button
+                            onClick={handleLogout}
+                            className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 transition-colors"
+                        >
+                            Cerrar Sesión
+                        </button>
                     </div>
-                )}
+
+                    {/* Botones de acción principales */}
+                    <div className="mt-8 border-t pt-6">
+                        <button
+                            onClick={() => router.push('/')}
+                            className="bg-green-500 text-white py-2 px-5 rounded-md hover:bg-green-600 transition-colors w-full text-left mb-4"
+                        >
+                            Realizar Pedido
+                        </button>
+                        <button
+                            onClick={() => setShowPedidos(!showPedidos)}
+                            className="bg-blue-500 text-white py-2 px-5 rounded-md hover:bg-blue-600 transition-colors w-full text-left"
+                        >
+                            {showPedidos ? 'Ocultar Historial de Pedidos' : 'Ver Historial de Pedidos'}
+                        </button>
+
+                        {showPedidos && (
+                            <div className="mt-6">
+                                {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+                                {pedidos.length > 0 ? (
+                                    <ul className="space-y-4">
+                                        {pedidos.map(pedido => (
+                                            <li key={pedido._id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <p className="font-semibold text-gray-800">Pedido #{pedido._id.slice(-6)}</p>
+                                                        <p className="text-sm text-gray-600">Fecha: {new Date(pedido.fecha).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <span className={`text-sm font-medium px-3 py-1 rounded-full ${
+                                                        pedido.estatus === 'pendiente' ? 'bg-yellow-200 text-yellow-800' :
+                                                        pedido.estatus === 'completado' ? 'bg-green-200 text-green-800' :
+                                                        'bg-red-200 text-red-800'
+                                                    }`}>
+                                                        {pedido.estatus}
+                                                    </span>
+                                                </div>
+                                                <div className="mt-3 border-t pt-3">
+                                                    <p className="text-gray-800 font-semibold">
+                                                        Total: ${parseFloat(pedido.total).toFixed(2)}
+                                                    </p>
+                                                    {pedido.estatus === 'pendiente' && (
+                                                        <div className="mt-4 text-right">
+                                                            <button
+                                                                onClick={() => handleCancelOrder(pedido._id)}
+                                                                disabled={cancelingId === pedido._id}
+                                                                className="bg-red-500 text-white text-sm py-1 px-3 rounded-md hover:bg-red-600 transition-colors disabled:bg-gray-400"
+                                                            >
+                                                                {cancelingId === pedido._id ? 'Cancelando...' : 'Cancelar Pedido'}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-center text-gray-500 mt-4">No has realizado ningún pedido aún.</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
             </main>
             <Footer />
-        </div>
+        </>
     );
 }

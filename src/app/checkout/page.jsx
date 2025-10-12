@@ -35,10 +35,10 @@ export default function CheckoutPage() {
             // CORRECCIÓN CRÍTICA: El objeto 'user' de localStorage tiene 'id', no '_id'.
             // La API espera '_id', por lo que debemos usar el valor correcto.
             cliente_id: user.id,
-            cliente_info: { // Información del cliente para la colección 'clientes'
-                nombre: user.nombre,
-                correo: user.correo,
-                telefono: user.telefono || '0000000000', // Asegurarse de que el teléfono exista
+            cliente_info: {
+                nombre: user?.nombre,
+                correo: user?.correo,
+                telefono: user?.telefono || '0000000000', // Asegurarse de que el teléfono exista
             },
             productos: cartItems.map(item => ({
                 // CORRECCIÓN DEFINITIVA: El `_id` del item es un objeto ObjectId de MongoDB.
@@ -66,6 +66,8 @@ export default function CheckoutPage() {
 
         } catch (err) {
             setError(err.message);
+        } finally {
+            // Asegurarse de que el estado de procesamiento se reinicie siempre.
             setIsProcessing(false);
         }
     };
@@ -84,8 +86,7 @@ export default function CheckoutPage() {
                         <h2 className="text-2xl font-semibold mb-4">Resumen del Pedido</h2>
                         <ul className="divide-y divide-gray-200 mb-6">
                             {cartItems.map(item => (
-                                // CORRECCIÓN: Usar una key única y robusta para evitar el warning de React.
-                                <li key={item._id || item.id} className="py-4 flex justify-between items-center">
+                                <li key={item._id} className="py-4 flex justify-between items-center">
                                     <div>
                                         <p className="font-semibold text-gray-800">{item.nombre}</p>
                                         <p className="text-sm text-gray-700">Cantidad: {item.quantity}</p>
