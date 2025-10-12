@@ -123,29 +123,32 @@ export default function ProductManagementPage() {
 
     const handleDownloadReport = async () => {
         setIsDownloading(true);
+        setApiError('');
         try {
+            // Usamos la nueva ruta de API optimizada
             const response = await fetch('/api/inventory/print');
  
             if (!response.ok) {
-                throw new Error('No se pudo generar el reporte. El servidor respondió con un error.');
+                // Si hay un error, intentamos leer el mensaje del servidor
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.message || 'Error al generar el reporte desde el servidor.');
             }
  
-            // Convertir la respuesta en un Blob (un objeto tipo archivo)
+            // Convertimos la respuesta en un Blob (el PDF)
             const blob = await response.blob();
-            // Crear una URL para el Blob
+            // Creamos una URL para el Blob y la usamos para iniciar la descarga
             const url = window.URL.createObjectURL(blob);
-            // Crear un enlace temporal para iniciar la descarga
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'reporte-inventario.pdf'; // Nombre del archivo a descargar
+            a.download = `reporte-inventario-${Date.now()}.pdf`;
             document.body.appendChild(a);
             a.click();
-            // Limpiar
-            a.remove();
             window.URL.revokeObjectURL(url);
+            a.remove();
         } catch (error) {
             console.error('Error al descargar el reporte:', error);
-            alert(error.message);
+            setApiError(error.message);
+            alert(`Error: ${error.message}`);
         } finally {
             setIsDownloading(false);
         }

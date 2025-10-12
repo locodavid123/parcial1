@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 
 export async function GET() {
   const uri = process.env.MONGODB_URI;
@@ -12,6 +13,24 @@ export async function GET() {
     await client.connect();
     const db = client.db(dbName);
     const products = await db.collection('productos').find({}).toArray();
+
+    // Función para obtener la imagen como base64
+    const getImageAsBase64 = async (url) => {
+      if (!url) return null;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const mimeType = response.headers.get('content-type') || 'image/jpeg';
+        return `data:${mimeType};base64,${buffer.toString('base64')}`;
+      } catch (error) {
+        console.warn(`No se pudo cargar la imagen desde ${url}:`, error.message);
+        return null;
+      }
+    };
+
+    const productsWithBase64Images = await Promise.all(products.map(async (product) => ({ ...product, imageBase64: await getImageAsBase64(product.imageUrl) })));
 
     // 1. Generar el contenido HTML para el PDF
     const htmlContent = `
@@ -41,10 +60,10 @@ export async function GET() {
               </tr>
             </thead>
             <tbody>
-              ${products.map(product => `
+              ${productsWithBase64Images.map(product => `
                 <tr>
                   <td>
-                    ${product.imageUrl ? `<img src="${product.imageUrl}" alt="${product.nombre || ''}">` : '<span>Sin imagen</span>'}
+                    ${product.imageBase64 ? `<img src="${product.imageBase64}" alt="${product.nombre || ''}">` : '<span>Sin imagen</span>'}
                   </td>
                   <td>${product.nombre || 'Sin nombre'}</td>
                   <td>${product.descripcion || 'Sin descripción'}</td>
@@ -58,10 +77,20 @@ export async function GET() {
       </html>
     `;
 
-    // 2. Usar Puppeteer para convertir el HTML a PDF
+    // 2. Configurar Puppeteer para usar Chrome local en desarrollo y Chromium en producción.
+    const executablePath =
+      process.env.NODE_ENV === 'development'
+        ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+        : await chromium.executablePath();
+
     const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      executablePath,
+      headless: process.env.NODE_ENV === 'development' ? true : chromium.headless,
+      args:
+        process.env.NODE_ENV === 'development'
+          ? ['--no-sandbox', '--disable-setuid-sandbox']
+          : chromium.args,
+      ignoreHTTPSErrors: true,
     });
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });

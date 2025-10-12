@@ -15,7 +15,7 @@ function useProducts() {
     const fetchProducts = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/admin/productos/auth');
+            const res = await fetch('/api/products/auth');
             if (!res.ok) throw new Error("Error al cargar productos");
             const data = await res.json();
             setProducts(data);
@@ -65,7 +65,7 @@ export default function ProductManagementPage() {
         setApiError('');
 
         try {
-            const res = await fetch('/admin/productos/auth', {
+            const res = await fetch('/api/products/auth', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(currentProduct),
@@ -87,7 +87,7 @@ export default function ProductManagementPage() {
     const handleDelete = async (productId, productName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar "${productName}"?`)) {
             try {
-                const res = await fetch(`/admin/productos/auth?id=${productId}`, { method: 'DELETE' });
+                const res = await fetch(`/api/products/auth?id=${productId}`, { method: 'DELETE' });
                 if (!res.ok) throw new Error('Error al eliminar el producto');
                 alert('¡Producto eliminado exitosamente!');
                 fetchProducts();
@@ -97,13 +97,40 @@ export default function ProductManagementPage() {
         }
     };
 
+    const handleGeneratePDF = async () => {
+        try {
+            // Usamos la nueva ruta de API optimizada
+            const response = await fetch('/api/inventory/print');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData.message || 'Error al generar el reporte desde el servidor.');
+            }
+            // Convertimos la respuesta en un Blob (el PDF) y forzamos la descarga
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reporte-inventario-${Date.now()}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert(`Error: ${error.message}`);
+        }
+    };
+
     return (
         <main>
             <Headers />
             <div className="container mx-auto px-4 py-8 min-h-screen">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-4xl font-bold text-gray-800">Gestión de Productos</h1>
-                    <div>
+                    <div className="flex items-center">
+                        <button onClick={handleGeneratePDF} className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors mr-4">
+                            Generar PDF
+                        </button>
                         {/* El botón de crear solo es visible para el SUPERUSER */}
                         {userRole === 'SUPERUSER' && (
                             <button onClick={() => alert('La creación de productos se maneja en otro panel.')} className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition-colors mr-4">
