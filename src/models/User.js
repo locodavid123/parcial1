@@ -8,9 +8,10 @@ export async function collection() {
   return db.collection(COLLECTION);
 }
 
-export async function findAll() {
+export async function findAll(query = {}) {
   const col = await collection();
-  return col.find({}).toArray();
+  // Se pasa el filtro directamente a la consulta de la base de datos.
+  return col.find(query).toArray();
 }
 
 export async function findById(id) {
