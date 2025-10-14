@@ -61,10 +61,14 @@ export default function OrderManagementPage() {
             const res = await fetch(`/api/orders?id=${orderId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus }),
+                body: JSON.stringify({ status: newStatus.toLowerCase() }),
             });
-            if (!res.ok) throw new Error('Error al actualizar el estado');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({ message: 'Error al actualizar el estado' }));
+                throw new Error(errorData.message);
+            }
             fetchOrders(); // Recargar pedidos
+            alert('¡Estado del pedido actualizado exitosamente!');
         } catch (err) {
             alert(`Error: ${err.message}`);
         }
@@ -84,10 +88,10 @@ export default function OrderManagementPage() {
 
     const getStatusClass = (status) => {
         switch (status) {
-            case 'Completado': return 'bg-green-200 text-green-800';
-            case 'Enviado': return 'bg-blue-200 text-blue-800';
-            case 'Cancelado': return 'bg-red-200 text-red-800';
-            default: return 'bg-yellow-200 text-yellow-800';
+            case 'completado': return 'bg-green-200 text-green-800';
+            case 'enviado': return 'bg-blue-200 text-blue-800';
+            case 'cancelado': return 'bg-red-200 text-red-800';
+            default: return 'bg-yellow-200 text-yellow-800'; // 'pendiente'
         }
     };
 
@@ -130,24 +134,24 @@ export default function OrderManagementPage() {
                                     {orders.map((order) => (
                                         <tr key={order._id} className="border-b hover:bg-gray-50">
                                             <td className="text-black py-3 px-6 font-mono">#...{order._id.slice(-6)}</td>
-                                            <td className="text-black py-3 px-6">{order.cliente_nombre}</td>
+                                            <td className="text-black py-3 px-6">{order.cliente?.nombre || 'N/A'}</td>
                                             <td className="text-black py-3 px-6">{order.fecha ? new Date(order.fecha).toLocaleString() : ''}</td>
                                             <td className="text-black py-3 px-6 text-right">${order.total ? parseFloat(order.total).toFixed(2) : '0.00'}</td>
-                                            <td className="text-black py-3 px-6 text-center">
-                                                <span className={`text-black py-1 px-3 rounded-full text-xs font-semibold ${getStatusClass(order.status)}`}> 
-                                                    {order.status}
+                                            <td className="py-3 px-6 text-center">
+                                                <span className={`py-1 px-3 rounded-full text-xs font-semibold capitalize ${getStatusClass(order.estatus)}`}>
+                                                    {order.estatus}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-6 text-center whitespace-nowrap">
                                                 <select
                                                     onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
-                                                    value={order.status}
+                                                    value={order.estatus}
                                                     className="text-black bg-gray-200 border rounded p-1 text-xs mr-2"
                                                 >
-                                                    <option value="Pendiente">Pendiente</option>
-                                                    <option value="Enviado">Enviado</option>
-                                                    <option value="Completado">Completado</option>
-                                                    <option value="Cancelado">Cancelado</option>
+                                                    <option value="pendiente">Pendiente</option>
+                                                    <option value="enviado">Enviado</option>
+                                                    <option value="completado">Completado</option>
+                                                    <option value="cancelado">Cancelado</option>
                                                 </select>
                                                 <button onClick={() => handleDeleteOrder(order._id)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">
                                                     Eliminar

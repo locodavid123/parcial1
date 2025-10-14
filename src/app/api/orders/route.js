@@ -14,19 +14,24 @@ function toObjectId(id) {
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const clienteId = searchParams.get('cliente_id'); // este es usuario_id (id del usuario)
+    const estatus = searchParams.get('estatus'); // Parámetro para filtrar por estado
 
     try {
         const db = await getDb();
 
         // Si se proporciona clienteId (usuario_id), buscamos clientes con ese usuario_id
         let match = {};
+        if (estatus) {
+            match.estatus = estatus;
+        }
+
         if (clienteId) {
             const clientes = await db.collection('clientes').find({ usuario_id: clienteId }).project({ _id: 1 }).toArray();
             const clienteIds = clientes.map(c => c._id);
             if (clienteIds.length === 0) {
                 return NextResponse.json([]);
             }
-            match = { cliente_id: { $in: clienteIds } };
+            match.cliente_id = { $in: clienteIds };
         }
 
         const pipeline = [
@@ -154,6 +159,10 @@ export async function PUT(request) {
     const client = await getClient();
     const session = client.startSession();
 
+    if (!status || typeof status !== 'string' || status.trim() === '') {
+        return NextResponse.json({ message: 'El campo "status" es requerido y debe ser una cadena de texto.' }, { status: 400 });
+    }
+
     try {
         const db = await getDb();
         let updatedPedido;
@@ -161,28 +170,36 @@ export async function PUT(request) {
         await session.withTransaction(async () => {
             const pedidosCol = db.collection('pedidos');
             const productosCol = db.collection('productos');
+            const lowerCaseStatus = status.toLowerCase();
 
-            // CORRECCIÓN: Siempre convertir a minúsculas para coincidir con el enum de la BD.
-            if (status && status.toLowerCase() === 'cancelado') {
-                // devolver stock
-                const pedido = await pedidosCol.findOne({ _id: toObjectId(id) }, { session });
-                if (!pedido) throw new Error('Pedido no encontrado');
-                for (const item of pedido.detalles || []) {
-                    // CORRECCIÓN: Asegurarse de que el ID del producto es un ObjectId válido.
-                    // Aunque `item.producto_id` ya debería ser un ObjectId, esta conversión
-                    // explícita previene errores de tipo inesperados.
-                    await productosCol.updateOne({ _id: toObjectId(item.producto_id) }, { $inc: { stock: item.cantidad } }, { session });
+            const pedidoOriginal = await pedidosCol.findOne({ _id: toObjectId(id) }, { session });
+            if (!pedidoOriginal) {
+                throw new Error('Pedido no encontrado');
+            }
+
+            // Lógica para devolver stock si el pedido se está cancelando y no estaba cancelado antes.
+            if (lowerCaseStatus === 'cancelado' && pedidoOriginal.estatus !== 'cancelado') {
+                for (const item of pedidoOriginal.detalles || []) {
+                    await productosCol.updateOne(
+                        { _id: toObjectId(item.producto_id) },
+                        { $inc: { stock: item.cantidad } },
+                        { session }
+                    );
                 }
             }
 
+            // Actualizar el estado del pedido.
             const res = await pedidosCol.findOneAndUpdate(
                 { _id: toObjectId(id) },
-                // CORRECCIÓN: Siempre guardar el estado en minúsculas.
-                { $set: { estatus: status.toLowerCase() } },
+                { $set: { estatus: lowerCaseStatus } },
                 { returnDocument: 'after', session }
             );
 
-            if (!res) throw new Error('Pedido no encontrado al intentar actualizar.');
+            // La validación de 'res' es crucial. Si es null, la actualización falló porque no se encontró el documento.
+            if (!res) {
+                throw new Error('Pedido no encontrado al intentar actualizar.');
+            }
+            // Asignar el resultado a la variable fuera del scope de la transacción.
             updatedPedido = res;
         });
 
