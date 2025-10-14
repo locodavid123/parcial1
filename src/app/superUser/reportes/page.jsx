@@ -15,7 +15,7 @@ export default function ReportesPage() {
         const fetchVentas = async () => {
             try {
                 setLoadingVentas(true);
-                const response = await fetch('/api/orders');
+                const response = await fetch('/api/orders?estatus=completado');
                 if (!response.ok) {
                     throw new Error('Error al obtener el reporte de ventas.');
                 }
