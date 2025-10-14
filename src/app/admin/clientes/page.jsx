@@ -18,7 +18,7 @@ export default function AdminClientManagementPage() {
         const loggedInUser = localStorage.getItem('loggedInUser');
         if (loggedInUser) {
             const parsedUser = JSON.parse(loggedInUser);
-            if (parsedUser.rol !== 'administador' && parsedUser.rol !== 'SUPERUSER') {
+            if (parsedUser.rol !== 'Administrador' && parsedUser.rol !== 'SUPERUSER') {
                 router.push('/');
             }
         } else {
@@ -43,11 +43,11 @@ export default function AdminClientManagementPage() {
         setUpdateError('');
 
         try {
-            const res = await fetch('/superUser/clientes/api', {
+            const res = await fetch('/superUser/gestion/api', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    id: editingClient.id, 
+                    _id: editingClient._id, 
                     nombre: editingClient.nombre,
                     correo: editingClient.correo,
                     telefono: editingClient.telefono
@@ -70,7 +70,7 @@ export default function AdminClientManagementPage() {
     const handleDelete = async (clientId, clientName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar a "${clientName}"?`)) {
             try {
-                const res = await fetch(`/superUser/clientes/api?id=${clientId}`, { method: 'DELETE' });
+                const res = await fetch(`/superUser/gestion/api?id=${clientId}`, { method: 'DELETE' });
                 if (!res.ok) {
                     const errorData = await res.json();
                     throw new Error(errorData.message || 'Error al eliminar el cliente');
@@ -102,7 +102,7 @@ export default function AdminClientManagementPage() {
                     {loading && <p className="text-center text-gray-600">Cargando clientes...</p>}
                     {error && <p className="text-center text-red-500">{error}</p>}
                     
-                    {!loading && !error && (
+                    {!loading && !error && clients.length > 0 ? (
                         <div className="overflow-x-auto">
                             <table className="min-w-full bg-white">
                                 <thead className="bg-gray-100 text-gray-700 uppercase text-sm leading-normal">
@@ -116,8 +116,8 @@ export default function AdminClientManagementPage() {
                                 </thead>
                                 <tbody className="text-gray-700 text-sm font-light">
                                     {clients.map((client) => (
-                                        <tr key={client.id} className="border-b border-gray-200 hover:bg-gray-50">
-                                            <td className="py-3 px-6 text-left whitespace-nowrap">{client.id}</td>
+                                        <tr key={client._id} className="border-b border-gray-200 hover:bg-gray-50">
+                                            <td className="py-3 px-6 text-left whitespace-nowrap">{client._id}</td>
                                             <td className="py-3 px-6 text-left">{client.nombre}</td>
                                             <td className="py-3 px-6 text-left">{client.correo}</td>
                                             <td className="py-3 px-6 text-left">{client.telefono || 'N/A'}</td>
@@ -127,7 +127,7 @@ export default function AdminClientManagementPage() {
                                                     className="bg-indigo-500 text-white py-1 px-3 rounded text-xs hover:bg-indigo-600 mr-2"
                                                 >Editar</button>
                                                 <button
-                                                    onClick={() => handleDelete(client.id, client.nombre)}
+                                                    onClick={() => handleDelete(client._id, client.nombre)}
                                                     className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600"
                                                 >Eliminar</button>
                                             </td>
@@ -136,6 +136,8 @@ export default function AdminClientManagementPage() {
                                 </tbody>
                             </table>
                         </div>
+                    ) : (
+                        !loading && <p className="text-center text-gray-500 mt-4">No hay clientes registrados.</p>
                     )}
                 </div>
             </div>
