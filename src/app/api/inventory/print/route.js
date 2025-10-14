@@ -77,21 +77,27 @@ export async function GET() {
       </html>
     `;
 
-    // 2. Configurar Puppeteer para usar Chrome local en desarrollo y Chromium en producción.
-    const executablePath =
-      process.env.NODE_ENV === 'development'
-        ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-        : await chromium.executablePath();
+    // 2. Configurar Puppeteer para usar Chrome local en desarrollo y Chromium en producción (Vercel).
+    let executablePath = '';
+    if (process.env.NODE_ENV === 'production') {
+      // En producción (Vercel), siempre usamos @sparticuz/chromium
+      executablePath = await chromium.executablePath();
+    } else {
+      // En desarrollo, intentamos usar una instalación local de Chrome.
+      // Esto es más rápido que descargar Chromium cada vez.
+      const { findChrome } = await import('find-chrome-bin');
+      const chromeInfo = await findChrome();
+      executablePath = chromeInfo.executablePath;
+    }
 
     const browser = await puppeteer.launch({
-      executablePath,
-      headless: process.env.NODE_ENV === 'development' ? true : chromium.headless,
-      args:
-        process.env.NODE_ENV === 'development'
-          ? ['--no-sandbox', '--disable-setuid-sandbox']
-          : chromium.args,
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: executablePath,
+      headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
+
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
     const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
