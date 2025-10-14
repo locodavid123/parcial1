@@ -6,7 +6,6 @@ import chromium from '@sparticuz/chromium';
 export async function GET() {
   const uri = process.env.MONGODB_URI;
   const dbName = process.env.MONGODB_DB;
-
   const client = new MongoClient(uri);
 
   try {
@@ -14,7 +13,7 @@ export async function GET() {
     const db = client.db(dbName);
     const products = await db.collection('productos').find({}).toArray();
 
-    // Función para obtener la imagen como base64
+    // Convertir imagen a base64
     const getImageAsBase64 = async (url) => {
       if (!url) return null;
       try {
@@ -30,9 +29,14 @@ export async function GET() {
       }
     };
 
-    const productsWithBase64Images = await Promise.all(products.map(async (product) => ({ ...product, imageBase64: await getImageAsBase64(product.imageUrl) })));
+    const productsWithBase64Images = await Promise.all(
+      products.map(async (product) => ({
+        ...product,
+        imageBase64: await getImageAsBase64(product.imageUrl),
+      }))
+    );
 
-    // 1. Generar el contenido HTML para el PDF
+    // HTML para el PDF
     const htmlContent = `
       <html>
         <head>
@@ -77,14 +81,11 @@ export async function GET() {
       </html>
     `;
 
-    // 2. Configurar Puppeteer para usar Chrome local en desarrollo y Chromium en producción (Vercel).
+    // Configurar Puppeteer
     let executablePath = '';
     if (process.env.NODE_ENV === 'production') {
-      // En producción (Vercel), siempre usamos @sparticuz/chromium
-      executablePath = await chromium.executablePath();
+      executablePath = await chromium.executablePath() || '/tmp/chromium';
     } else {
-      // En desarrollo, intentamos usar una instalación local de Chrome.
-      // Esto es más rápido que descargar Chromium cada vez.
       const { findChrome } = await import('find-chrome-bin');
       const chromeInfo = await findChrome();
       executablePath = chromeInfo.executablePath;
@@ -93,17 +94,16 @@ export async function GET() {
     const browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: executablePath,
+      executablePath,
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
 
     const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    await page.setContent(htmlContent, { waitUntil: 'domcontentloaded' });
     const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
     await browser.close();
 
-    // 3. Devolver el buffer del PDF
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
