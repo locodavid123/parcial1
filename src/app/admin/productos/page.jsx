@@ -168,7 +168,7 @@ export default function ProductManagementPage() {
                                             <td className="text-black py-3 px-6 text-center">
                                                 <button onClick={() => handleOpenModal(product)} className="bg-indigo-500 text-white py-1 px-3 rounded text-xs hover:bg-indigo-600 mr-2">Editar</button>
                                                 {/* El botón de eliminar es visible para SUPERUSER y administrador */}
-                                                {(userRole === 'SUPERUSER' || userRole === 'administador') && (
+                                                {(userRole === 'SUPERUSER' || userRole === 'Administrador') && (
                                                     <button onClick={() => handleDelete(product.id, product.nombre)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">Eliminar</button>
                                                 )}
                                             </td>
