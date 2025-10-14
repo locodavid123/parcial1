@@ -1,38 +1,35 @@
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer-core'; // ✅ usa puppeteer-core en lugar de puppeteer completo
 import chromium from '@sparticuz/chromium';
 
 export async function GET() {
   const uri = process.env.MONGODB_URI;
   const dbName = process.env.MONGODB_DB;
 
+  if (!uri || !dbName) {
+    console.error('❌ Faltan variables de entorno MONGODB_URI o MONGODB_DB.');
+    return NextResponse.json({ message: 'Faltan variables de entorno para MongoDB' }, { status: 500 });
+  }
+
   const client = new MongoClient(uri);
+  let browser;
+
+  // Detectar entorno
+  const isLocal = process.env.NODE_ENV === 'development';
+  console.log(`🌍 Entorno detectado: ${isLocal ? 'Desarrollo (Local)' : 'Producción (Vercel)'}`);
 
   try {
+    // Conexión a MongoDB
+    console.log('🔌 Conectando a MongoDB...');
     await client.connect();
+    console.log('✅ Conectado correctamente a la base de datos.');
+
     const db = client.db(dbName);
     const products = await db.collection('productos').find({}).toArray();
+    console.log(`📦 Productos encontrados: ${products.length}`);
 
-    // Función para obtener la imagen como base64
-    const getImageAsBase64 = async (url) => {
-      if (!url) return null;
-      try {
-        const response = await fetch(url);
-        if (!response.ok) return null;
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const mimeType = response.headers.get('content-type') || 'image/jpeg';
-        return `data:${mimeType};base64,${buffer.toString('base64')}`;
-      } catch (error) {
-        console.warn(`No se pudo cargar la imagen desde ${url}:`, error.message);
-        return null;
-      }
-    };
-
-    const productsWithBase64Images = await Promise.all(products.map(async (product) => ({ ...product, imageBase64: await getImageAsBase64(product.imageUrl) })));
-
-    // 1. Generar el contenido HTML para el PDF
+    // Generar HTML
     const htmlContent = `
       <html>
         <head>
@@ -60,44 +57,51 @@ export async function GET() {
               </tr>
             </thead>
             <tbody>
-              ${productsWithBase64Images.map(product => `
-                <tr>
-                  <td>
-                    ${product.imageBase64 ? `<img src="${product.imageBase64}" alt="${product.nombre || ''}">` : '<span>Sin imagen</span>'}
-                  </td>
-                  <td>${product.nombre || 'Sin nombre'}</td>
-                  <td>${product.descripcion || 'Sin descripción'}</td>
-                  <td class="stock">${product.stock ?? 0}</td>
-                  <td class="price">$${product.precio ? parseFloat(product.precio).toFixed(2) : '0.00'}</td>
-                </tr>
-              `).join('')}
+              ${products.map(
+                (p) => `
+                  <tr>
+                    <td>${p.imageUrl ? `<img src="${p.imageUrl}" alt="${p.nombre || ''}">` : '<span>Sin imagen</span>'}</td>
+                    <td>${p.nombre || 'Sin nombre'}</td>
+                    <td>${p.descripcion || 'Sin descripción'}</td>
+                    <td class="stock">${p.stock ?? 0}</td>
+                    <td class="price">$${p.precio ? parseFloat(p.precio).toFixed(2) : '0.00'}</td>
+                  </tr>`
+              ).join('')}
             </tbody>
           </table>
         </body>
       </html>
     `;
 
-    // 2. Configurar Puppeteer para usar Chrome local en desarrollo y Chromium en producción.
-    const executablePath =
-      process.env.NODE_ENV === 'development'
-        ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-        : await chromium.executablePath();
+    // Configuración de Puppeteer
+    console.log('🧠 Inicializando Puppeteer...');
+    const launchOptions = isLocal
+      ? {
+          headless: true,
+          args: [],
+          executablePath:
+            process.platform === 'win32'
+              ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+              : '/usr/bin/google-chrome',
+        }
+      : {
+          args: chromium.args,
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath(),
+          headless: chromium.headless,
+          ignoreHTTPSErrors: true,
+        };
 
-    const browser = await puppeteer.launch({
-      executablePath,
-      headless: process.env.NODE_ENV === 'development' ? true : chromium.headless,
-      args:
-        process.env.NODE_ENV === 'development'
-          ? ['--no-sandbox', '--disable-setuid-sandbox']
-          : chromium.args,
-      ignoreHTTPSErrors: true,
-    });
+    browser = await puppeteer.launch(launchOptions);
+    console.log('🚀 Navegador lanzado correctamente.');
+
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
-    await browser.close();
 
-    // 3. Devolver el buffer del PDF
+    console.log('📄 Generando PDF...');
+    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+
+    console.log('✅ PDF generado con éxito.');
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
@@ -105,11 +109,22 @@ export async function GET() {
         'Content-Disposition': 'attachment; filename="reporte-inventario.pdf"',
       },
     });
-
   } catch (error) {
-    console.error('Error al generar el PDF:', error);
-    return NextResponse.json({ message: 'Error al generar el PDF', error: error.message }, { status: 500 });
+    console.error('❌ Error al generar el PDF:', error);
+    return NextResponse.json(
+      { message: 'Error al generar el PDF', error: error.message },
+      { status: 500 }
+    );
   } finally {
-    await client.close();
+    if (browser) {
+      try {
+        await browser.close();
+        console.log('🧹 Navegador cerrado correctamente.');
+      } catch (e) {
+        console.warn('⚠️ No se pudo cerrar el navegador:', e.message);
+      }
+    }
+    await client.close().catch(() => {});
+    console.log('🧹 Conexión a MongoDB cerrada.');
   }
 }
