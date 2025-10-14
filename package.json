@@ -9,11 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^119.0.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
     "dotenv": "^17.2.1",
-    "@sparticuz/chromium": "119.0.0",
     "express": "^5.1.0",
     "mongodb": "^6.20.0",
     "next": "15.5.0",
