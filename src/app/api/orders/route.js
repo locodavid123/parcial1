@@ -1,54 +1,38 @@
 import { NextResponse } from 'next/server';
-import getDatabase from '@/app/config/couchdb';
-import { create as createClient } from '@/models/Client';
+import getDatabase from '@/app/config/couchdb.js';
 
-function toObjectId(id) {
-    try {
-        return new ObjectId(id);
-    } catch (e) {
-        return null;
-    }
+// Nota: Esta implementación usa CouchDB (nano) en lugar de la API de MongoDB.
+// El archivo original estaba escrito para MongoDB (getClient/getDb, transacciones).
+// Aquí proporciono una versión adaptada a CouchDB sin transacciones (CouchDB no tiene transacciones multi-doc).
+
+function safeId(id) {
+    if (!id) return null;
+    return String(id);
 }
 
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
-    const clienteId = searchParams.get('cliente_id'); // este es usuario_id (id del usuario)
-    const estatus = searchParams.get('estatus'); // Parámetro para filtrar por estado
+    const clienteId = searchParams.get('cliente_id');
+    const estatus = searchParams.get('estatus');
 
     try {
-        const db = await getDb();
+        const db = await getDatabase();
+        const resp = await db.orders.list({ include_docs: true });
+        let docs = resp.rows.map(r => r.doc || r);
 
-        // Si se proporciona clienteId (usuario_id), buscamos clientes con ese usuario_id
-        let match = {};
         if (estatus) {
-            match.estatus = estatus;
+            docs = docs.filter(d => String(d.estatus || '').toLowerCase() === String(estatus).toLowerCase());
         }
 
         if (clienteId) {
-            const clientes = await db.collection('clientes').find({ usuario_id: clienteId }).project({ _id: 1 }).toArray();
-            const clienteIds = clientes.map(c => c._id);
-            if (clienteIds.length === 0) {
-                return NextResponse.json([]);
-            }
-            match.cliente_id = { $in: clienteIds };
+            // Aceptar coincidencias por varios posibles campos: usuario_id o cliente_id
+            docs = docs.filter(d => String(d.usuario_id || d.cliente_id || '') === String(clienteId));
         }
 
-        const pipeline = [
-            { $match: match },
-            {
-                $lookup: {
-                    from: 'clientes',
-                    localField: 'cliente_id',
-                    foreignField: '_id',
-                    as: 'cliente'
-                }
-            },
-            { $unwind: { path: '$cliente', preserveNullAndEmptyArrays: true } },
-            { $sort: { createdAt: -1 } }
-        ];
+        // Ordenar por fecha descendente si existe
+        docs.sort((a, b) => new Date(b.fecha || b.createdAt || 0) - new Date(a.fecha || a.createdAt || 0));
 
-        const pedidos = await db.collection('pedidos').aggregate(pipeline).toArray();
-        return NextResponse.json(pedidos);
+        return NextResponse.json(docs);
     } catch (error) {
         console.error('Error al obtener pedidos:', error);
         return NextResponse.json({ message: 'Error al obtener los pedidos', error: error.message }, { status: 500 });
@@ -57,194 +41,143 @@ export async function GET(request) {
 
 export async function POST(request) {
     const { cliente_id, cliente_info, productos } = await request.json();
-    const client = await getClient();
-    const session = client.startSession();
+    if (!cliente_id || !Array.isArray(productos)) {
+        return NextResponse.json({ message: 'Parámetros inválidos' }, { status: 400 });
+    }
 
     try {
-        const db = await getDb();
-        let resultPedido;
+        const db = await getDatabase();
 
-        await session.withTransaction(async () => {
-            const clientesCol = db.collection('clientes');
-            const productosCol = db.collection('productos');
-            const pedidosCol = db.collection('pedidos');
-
-            // 1. Verificar si existe cliente vinculado al usuario
-            let cliente = await clientesCol.findOne({ usuario_id: cliente_id }, { session });
-            if (!cliente) {
-                const nuevo = {
-                    nombre: cliente_info.nombre,
-                    correo: cliente_info.correo,
-                    telefono: cliente_info.telefono || '',
-                    usuario_id: cliente_id,
-                    createdAt: new Date()
-                };
-                const insertRes = await clientesCol.insertOne(nuevo, { session });
-                cliente = { _id: insertRes.insertedId, ...nuevo };
-            }
-
-            // 2. Obtener precios y comprobar stock
-            const productIds = productos.map(p => toObjectId(p.producto_id)).filter(Boolean);
-            if (productIds.length !== productos.length) {
-                throw new Error('Uno o más IDs de producto son inválidos.');
-            }
-            
-            const prodsFromDbMap = new Map(
-                (await productosCol.find({ _id: { $in: productIds } }, { session }).toArray())
-                .map(p => [String(p._id), p])
-            );
-
-            let totalCalculado = 0;
-            const productosParaPedido = [];
-
-            for (const p of productos) {
-                const prodDb = prodsFromDbMap.get(p.producto_id);
-                if (!prodDb) {
-                    throw new Error(`Producto con ID ${p.producto_id} no encontrado.`);
-                }
-                if ((prodDb.stock || 0) < p.cantidad) {
-                    throw new Error(`Stock insuficiente para "${prodDb.nombre}". Disponible: ${prodDb.stock || 0}, Solicitado: ${p.cantidad}.`);
-                }
-                
-                totalCalculado += (prodDb.precio || 0) * p.cantidad;
-                
-                productosParaPedido.push({
-                    // Usamos el ObjectId directamente para la lógica interna
-                    _id: prodDb._id, 
-                    cantidad: p.cantidad,
-                    precio_unitario: prodDb.precio || 0,
-                });
-            }
-
-            // 3. Crear pedido
-            const pedidoDoc = {
-                cliente_id: cliente._id,
-                fecha: new Date(),
-                total: new Double(totalCalculado),
-                estatus: 'pendiente', // Asegurarse de que esté en minúscula como espera el enum de la BD
-                // Mapeamos al formato final para la BD, asegurando que el ID es un ObjectId
-                detalles: productosParaPedido.map(p => ({
-                    producto_id: p._id, // Ya es un ObjectId
-                    cantidad: new Int32(p.cantidad),
-                    precio_unitario: new Double(p.precio_unitario),
-                })),
+        // 1) Buscar o crear cliente en CouchDB
+        const clientsResp = await db.clients.list({ include_docs: true });
+        let cliente = clientsResp.rows.map(r => r.doc).find(c => String(c.usuario_id) === String(cliente_id));
+        if (!cliente) {
+            const nuevo = {
+                nombre: cliente_info?.nombre || '',
+                correo: cliente_info?.correo || '',
+                telefono: cliente_info?.telefono || '',
+                usuario_id: String(cliente_id),
+                createdAt: new Date().toISOString()
             };
-            const pedidoInsert = await pedidosCol.insertOne(pedidoDoc, { session });
+            const insertRes = await db.clients.insert(nuevo);
+            cliente = { ...nuevo, _id: insertRes.id, _rev: insertRes.rev };
+        }
 
-            // 4. Actualizar stock
-            for (const item of productosParaPedido) {
-                // Usamos el _id que guardamos previamente, que es un ObjectId
-                await productosCol.updateOne({ _id: item._id }, { $inc: { stock: -item.cantidad } }, { session });
+        // 2) Validar productos y calcular total
+        const productResp = await db.products.list({ include_docs: true });
+        const productsMap = new Map(productResp.rows.map(r => [String(r.id || r.doc && r.doc._id || ''), (r.doc || r)]));
+
+        let total = 0;
+        const detalles = [];
+
+        for (const p of productos) {
+            const prodId = safeId(p.producto_id);
+            const prod = productsMap.get(prodId) || await (async () => {
+                try { return await db.products.get(prodId); } catch { return null; }
+            })();
+
+            if (!prod) return NextResponse.json({ message: `Producto ${prodId} no encontrado` }, { status: 400 });
+            const cantidad = Number(p.cantidad || 0);
+            if ((prod.stock || 0) < cantidad) return NextResponse.json({ message: `Stock insuficiente para ${prod.nombre}` }, { status: 400 });
+
+            total += (prod.precio || 0) * cantidad;
+            detalles.push({ producto_id: prod._id || prodId, cantidad, precio_unitario: prod.precio || 0 });
+        }
+
+        // 3) Crear documento de pedido
+        const pedido = {
+            cliente_id: cliente._id,
+            usuario_id: String(cliente_id),
+            fecha: new Date().toISOString(),
+            total,
+            estatus: 'pendiente',
+            detalles,
+            createdAt: new Date().toISOString()
+        };
+
+        const createRes = await db.orders.insert(pedido);
+
+        // 4) Actualizar stock (no es transaccional en CouchDB)
+        for (const item of detalles) {
+            try {
+                const prodDoc = await db.products.get(String(item.producto_id));
+                prodDoc.stock = (prodDoc.stock || 0) - item.cantidad;
+                await db.products.insert({ ...prodDoc, _id: prodDoc._id, _rev: prodDoc._rev });
+            } catch (e) {
+                console.warn('Error actualizando stock para', item.producto_id, e.message);
             }
+        }
 
-            resultPedido = { pedidoId: pedidoInsert.insertedId, clienteId: cliente._id };
-        });
-
-        return NextResponse.json({ message: 'Pedido creado exitosamente', ...resultPedido }, { status: 201 });
+        return NextResponse.json({ message: 'Pedido creado exitosamente', pedidoId: createRes.id }, { status: 201 });
     } catch (error) {
-        console.error('Error al crear el pedido:', error);
-        // Devolvemos el mensaje de error específico que lanzamos en las validaciones
+        console.error('Error al crear pedido:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
-    } finally {
-        await session.endSession();
     }
 }
 
 export async function PUT(request) {
-    // CORRECCIÓN: El ID se envía como un parámetro de búsqueda en la URL, no en el cuerpo.
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const { status } = await request.json();
-    const client = await getClient();
-    const session = client.startSession();
-
-    if (!status || typeof status !== 'string' || status.trim() === '') {
-        return NextResponse.json({ message: 'El campo "status" es requerido y debe ser una cadena de texto.' }, { status: 400 });
-    }
+    if (!id || !status) return NextResponse.json({ message: 'Faltan parámetros' }, { status: 400 });
 
     try {
-        const db = await getDb();
-        let updatedPedido;
+        const db = await getDatabase();
+        const pedido = await db.orders.get(String(id));
+        if (!pedido) return NextResponse.json({ message: 'Pedido no encontrado' }, { status: 404 });
 
-        await session.withTransaction(async () => {
-            const pedidosCol = db.collection('pedidos');
-            const productosCol = db.collection('productos');
-            const lowerCaseStatus = status.toLowerCase();
+        const prevStatus = String(pedido.estatus || '').toLowerCase();
+        const newStatus = String(status).toLowerCase();
 
-            const pedidoOriginal = await pedidosCol.findOne({ _id: toObjectId(id) }, { session });
-            if (!pedidoOriginal) {
-                throw new Error('Pedido no encontrado');
-            }
-
-            // Lógica para devolver stock si el pedido se está cancelando y no estaba cancelado antes.
-            if (lowerCaseStatus === 'cancelado' && pedidoOriginal.estatus !== 'cancelado') {
-                for (const item of pedidoOriginal.detalles || []) {
-                    await productosCol.updateOne(
-                        { _id: toObjectId(item.producto_id) },
-                        { $inc: { stock: item.cantidad } },
-                        { session }
-                    );
+        // Si se cancela y antes no estaba cancelado, devolver stock
+        if (newStatus === 'cancelado' && prevStatus !== 'cancelado') {
+            for (const item of pedido.detalles || []) {
+                try {
+                    const prodDoc = await db.products.get(String(item.producto_id));
+                    prodDoc.stock = (prodDoc.stock || 0) + (item.cantidad || 0);
+                    await db.products.insert({ ...prodDoc, _id: prodDoc._id, _rev: prodDoc._rev });
+                } catch (e) {
+                    console.warn('Error restaurando stock para', item.producto_id, e.message);
                 }
             }
+        }
 
-            // Actualizar el estado del pedido.
-            const res = await pedidosCol.findOneAndUpdate(
-                { _id: toObjectId(id) },
-                { $set: { estatus: lowerCaseStatus } },
-                { returnDocument: 'after', session }
-            );
-
-            // La validación de 'res' es crucial. Si es null, la actualización falló porque no se encontró el documento.
-            if (!res) {
-                throw new Error('Pedido no encontrado al intentar actualizar.');
-            }
-            // Asignar el resultado a la variable fuera del scope de la transacción.
-            updatedPedido = res;
-        });
-
-        return NextResponse.json(updatedPedido);
+        pedido.estatus = newStatus;
+        const res = await db.orders.insert({ ...pedido, _id: pedido._id, _rev: pedido._rev });
+        return NextResponse.json({ ...pedido, _rev: res.rev });
     } catch (error) {
-        console.error('Error al actualizar el pedido:', error);
+        console.error('Error al actualizar pedido:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
-    } finally {
-        await session.endSession();
     }
 }
 
 export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const client = await getClient();
-    const session = client.startSession();
+    if (!id) return NextResponse.json({ message: 'Falta id' }, { status: 400 });
 
     try {
-        const db = await getDb();
-        await session.withTransaction(async () => {
-            const pedidosCol = db.collection('pedidos');
-            const productosCol = db.collection('productos');
+        const db = await getDatabase();
+        const pedido = await db.orders.get(String(id));
+        if (!pedido) return NextResponse.json({ message: 'Pedido no encontrado' }, { status: 404 });
 
-            const pedido = await pedidosCol.findOne({ _id: toObjectId(id) }, { session });
-            if (!pedido) throw new Error('Pedido no encontrado');
-
-            // Devolver stock solo si el pedido no estaba ya cancelado
-            // CORRECCIÓN: Comparar con el valor en minúsculas.
-            if (pedido.estatus !== 'cancelado') {
-                for (const item of pedido.detalles || []) {
-                    // CORRECCIÓN: Asegurarse de que el ID del producto es un ObjectId válido.
-                    // Misma lógica que en la función PUT para garantizar la consistencia.
-                    await productosCol.updateOne({ _id: toObjectId(item.producto_id) }, { $inc: { stock: item.cantidad } }, { session });
+        // Devolver stock si no estaba cancelado
+        if (String(pedido.estatus || '').toLowerCase() !== 'cancelado') {
+            for (const item of pedido.detalles || []) {
+                try {
+                    const prodDoc = await db.products.get(String(item.producto_id));
+                    prodDoc.stock = (prodDoc.stock || 0) + (item.cantidad || 0);
+                    await db.products.insert({ ...prodDoc, _id: prodDoc._id, _rev: prodDoc._rev });
+                } catch (e) {
+                    console.warn('Error restaurando stock para', item.producto_id, e.message);
                 }
             }
+        }
 
-            // eliminar pedido
-            await pedidosCol.deleteOne({ _id: toObjectId(id) }, { session });
-        });
-
+        await db.orders.destroy(pedido._id, pedido._rev);
         return NextResponse.json({ message: 'Pedido eliminado exitosamente' });
     } catch (error) {
-        console.error('Error al eliminar el pedido:', error);
+        console.error('Error al eliminar pedido:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
-    } finally {
-        await session.endSession();
     }
 }
