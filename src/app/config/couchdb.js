@@ -1,7 +1,7 @@
 import nano from 'nano';
 
 const url = process.env.COUCHDB_URL || 'http://localhost:5984';
-const username = process.env.COUCHDB_USERNAME || 'Sebas1699';
+const username = process.env.COUCHDB_USERNAME || 'admin';
 const password = process.env.COUCHDB_PASSWORD || '123456';
 
 console.log('CouchDB Configuration:', {

@@ -41,10 +41,40 @@ export async function findByFaceDescriptor(faceDescriptor) {
         const response = await db.users.list({ include_docs: true });
         const users = response.rows.map(row => row.doc)
             .filter(user => user.faceDescriptors && user.faceDescriptors.length > 0);
-        return users;
+
+        // Convert incoming descriptor to numbers (in case comes as strings)
+        const target = Array.isArray(faceDescriptor) ? faceDescriptor.map(Number) : [];
+        if (target.length === 0) return null;
+
+        // Euclidean distance between two descriptors
+        const distance = (a, b) => {
+            let s = 0;
+            for (let i = 0; i < a.length && i < b.length; i++) {
+                const d = (a[i] - b[i]);
+                s += d * d;
+            }
+            return Math.sqrt(s);
+        };
+
+        const THRESHOLD = 0.6; // valor típico para face-api.js
+
+        for (const user of users) {
+            // Soportar tanto `faceDescriptors` (array) como `faceDescriptor` (único)
+            const storedList = user.faceDescriptors || (user.faceDescriptor ? [user.faceDescriptor] : []);
+            for (const stored of storedList) {
+                const storedArr = Array.isArray(stored) ? stored.map(Number) : [];
+                if (storedArr.length === 0) continue;
+                const d = distance(target, storedArr);
+                if (d <= THRESHOLD) {
+                    return user; // coincidencia encontrada
+                }
+            }
+        }
+
+        return null;
     } catch (error) {
         console.error('Error en findByFaceDescriptor:', error);
-        return [];
+        return null;
     }
 }
 

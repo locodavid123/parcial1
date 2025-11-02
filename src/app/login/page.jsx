@@ -19,11 +19,6 @@ export default function Login() {
   useEffect(() => {
     (async () => {
       try {
-        // Inicializar TensorFlow.js primero
-        const tf = await import('@tensorflow/tfjs');
-        await tf.setBackend('webgl');
-        await tf.ready();
-
         const faceapi = await import("face-api.js");
         const MODEL_URL = "/models";
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
