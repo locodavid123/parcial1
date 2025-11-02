@@ -13,6 +13,9 @@ export async function POST(request) {
     if (!user) {
       return NextResponse.json({ message: 'Usuario no registrado.' }, { status: 404 });
     }
+    
+    // Asegurarnos de que estamos usando el ID de CouchDB
+    user.id = user._id;
 
     // Manejar dos casos:
     // 1) La contraseña en la BD ya está hasheada con bcrypt ($2a/$2b/...)

@@ -1,12 +1,4 @@
-import { ObjectId, Double, Int32 } from 'mongodb'; // Importar Double e Int32
-import getDb, { getClient } from '@/app/config/mongo';
-
-const COLLECTION = 'productos';
-
-async function collection() {
-    const db = await getDb();
-    return db.collection(COLLECTION);
-}
+import getDatabase from '@/app/config/couchdb.js';
 
 // Helper para validar URLs
 function isValidHttpUrl(s) {
@@ -28,142 +20,180 @@ function parseLocaleNumber(value) {
     if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
         return Number(s.replace(/\./g, '').replace(/,/g, '.'));
     }
-    // "19900,50" -> 19900.50
+    // "19,900.00" -> 19900.00
     if (s.indexOf(',') !== -1) {
-        return Number(s.replace(/,/g, '.'));
+        return Number(s.replace(/,/g, ''));
     }
-    // "19,900.50" -> 19900.50
-    return Number(s.replace(/,/g, ''));
+    return Number(s);
 }
 
-/**
- * Devuelve todos los productos de la colección, ordenados por fecha de creación.
- * @returns {Promise<Array>}
- */
-export async function findAll() {
-    const col = await collection();
-    return col.find({}).sort({ createdAt: 1 }).toArray();
+export async function findAll(query = {}) {
+    try {
+        const db = await getDatabase();
+        const response = await db.products.list({ include_docs: true });
+        let docs = response.rows.map(row => row.doc);
+        
+        // Aplicar filtros si existen
+        if (Object.keys(query).length > 0) {
+            docs = docs.filter(doc => {
+                return Object.entries(query).every(([key, value]) => doc[key] === value);
+            });
+        }
+        
+        return docs;
+    } catch (error) {
+        console.error('Error en findAll:', error);
+        return [];
+    }
 }
 
 export async function findById(id) {
-    if (!id) return null;
-    const col = await collection();
     try {
-        const _id = new ObjectId(id);
-        return col.findOne({ _id });
-    } catch (e) {
-        // id no es un ObjectId válido
-        return null;
+        const db = await getDatabase();
+        return await db.products.get(id);
+    } catch (error) {
+        if (error.statusCode === 404) {
+            return null;
+        }
+        console.error('Error en findById:', error);
+        throw error;
     }
 }
 
-/**
- * Sanea y valida un payload de producto antes de insertarlo o actualizarlo.
- * @param {object} payload - Los datos del producto.
- * @returns {Promise<object>} El payload saneado y listo para la BD.
- */
-async function sanitize(payload) {
-    const docPayload = {};
-
-    if (payload.nombre !== undefined) docPayload.nombre = String(payload.nombre).trim();
-    if (payload.descripcion !== undefined) docPayload.descripcion = String(payload.descripcion).trim();
-
-    if (payload.precio !== undefined) {
-        const num = parseLocaleNumber(payload.precio);
-        if (!Number.isFinite(num)) {
-            const e = new Error('El campo "precio" debe ser un número válido');
-            e.status = 400;
-            throw e;
-        }
-        // Forzar el tipo Double para cumplir con el validador de Atlas
-        docPayload.precio = new Double(num);
-    }
-
-    if (payload.stock !== undefined) {
-        const num = parseLocaleNumber(payload.stock);
-        if (!Number.isFinite(num) || !Number.isInteger(num)) {
-            const e = new Error('El campo "stock" debe ser un número entero válido');
-            e.status = 400;
-            throw e;
-        }
-        // Forzar el tipo Int32
-        docPayload.stock = new Int32(num);
-    }
-
-    // Aceptar 'imageUrl' o 'imagenUrl' y normalizar a ambos campos
-    const imageUrl = payload.imageUrl || payload.imagenUrl;
-    if (imageUrl !== undefined) {
-        const v = String(imageUrl).trim();
-        if (!isValidHttpUrl(v)) {
-            const e = new Error('El campo "imagenUrl" debe ser una URL válida (http/https)');
-            e.status = 400;
-            throw e;
-        }
-        docPayload.imageUrl = v;
-        docPayload.imagenUrl = v; // Requerido por el validador de Atlas
-    } else {
-        // Asegurar que imagenUrl esté presente si es requerido por el esquema
-        docPayload.imagenUrl = '';
-    }
-
-    return docPayload;
-}
-
-export async function create(payload, options = {}) {
-    const col = await collection();
-    const now = new Date();
-
-    // Sanear el payload antes de la inserción
-    const docPayload = await sanitize(payload);
-
-    const doc = {
-        ...docPayload,
-        createdAt: now,
-        updatedAt: now,
-    };
-
+export async function create(productData) {
     try {
-        const res = await col.insertOne(doc, options);
-        return { _id: res.insertedId, ...doc };
-    } catch (err) {
-        // Propagar errores de validación para que la ruta los maneje
-        if (err && err.code === 121 && err.errInfo) {
-            const e = new Error('MongoDB Document validation failed');
-            e.errInfo = err.errInfo;
-            e.code = err.code;
-            throw e;
-        }
-        throw err; // Re-lanzar otros errores
+        const db = await getDatabase();
+        // Validación y normalización de datos
+        const normalizedData = normalizeProductData(productData);
+        const { id, ...data } = normalizedData;
+        
+        const response = await db.products.insert(data);
+        return { ...data, _id: response.id, _rev: response.rev };
+    } catch (error) {
+        console.error('Error en create:', error);
+        throw error;
     }
 }
 
-export async function updateById(id, payload) {
-    const col = await collection();
-    const docPayload = await sanitize(payload);
+export async function update(id, productData) {
+    return updateById(id, productData);
+}
 
+export async function updateById(id, productData) {
     try {
-        const _id = new ObjectId(id);
-        const now = new Date();
-        const res = await col.findOneAndUpdate(
-            { _id },
-            { $set: { ...docPayload, updatedAt: now } },
-            { returnDocument: 'after' }
-        );
-        return res.value;
-    } catch (e) {
-        return null;
+        const db = await getDatabase();
+        const existingDoc = await db.products.get(id);
+        const normalizedData = normalizeProductData(productData);
+        
+        const updatedDoc = { 
+            ...existingDoc, 
+            ...normalizedData, 
+            _id: id, 
+            _rev: existingDoc._rev 
+        };
+        
+        const response = await db.products.insert(updatedDoc);
+        return { ...updatedDoc, _rev: response.rev };
+    } catch (error) {
+        console.error('Error en updateById:', error);
+        throw error;
     }
 }
 
 export async function deleteById(id) {
-    const col = await collection();
     try {
-        const _id = new ObjectId(id);
-        const res = await col.findOneAndDelete({ _id });
-        return res.value;
-    } catch (e) {
-        return null;
+        const db = await getDatabase();
+        const doc = await db.products.get(id);
+        return await db.products.destroy(id, doc._rev);
+    } catch (error) {
+        console.error('Error en deleteById:', error);
+        throw error;
     }
 }
 
-export default { findAll, findById, create, updateById, deleteById };
+export async function remove(id) {
+    try {
+        const db = await getDatabase();
+        const doc = await db.products.get(id);
+        return await db.products.destroy(id, doc._rev);
+    } catch (error) {
+        console.error('Error en remove:', error);
+        throw error;
+    }
+}
+
+export async function updateStock(id, quantity) {
+    try {
+        const db = await getDatabase();
+        const product = await db.products.get(id);
+        
+        const currentStock = parseFloat(product.stock) || 0;
+        const newStock = currentStock + parseFloat(quantity);
+        
+        if (newStock < 0) {
+            throw new Error('Stock insuficiente');
+        }
+        
+        const updatedProduct = {
+            ...product,
+            stock: newStock,
+            _id: id,
+            _rev: product._rev
+        };
+        
+        const response = await db.products.insert(updatedProduct);
+        return { ...updatedProduct, _rev: response.rev };
+    } catch (error) {
+        console.error('Error en updateStock:', error);
+        throw error;
+    }
+}
+
+function normalizeProductData(data) {
+    const normalized = { ...data };
+
+    // Normalizar campos numéricos
+    if ('price' in normalized) {
+        normalized.price = parseLocaleNumber(normalized.price);
+    }
+    if ('stock' in normalized) {
+        normalized.stock = parseLocaleNumber(normalized.stock);
+    }
+    if ('minStock' in normalized) {
+        normalized.minStock = parseLocaleNumber(normalized.minStock);
+    }
+
+    // Validar y normalizar imageUrl
+    if ('imageUrl' in normalized) {
+        if (!isValidHttpUrl(normalized.imageUrl)) {
+            delete normalized.imageUrl;
+        }
+    }
+
+    // Asegurar que los campos requeridos existan
+    normalized.name = normalized.name || '';
+    normalized.description = normalized.description || '';
+    normalized.price = normalized.price || 0;
+    normalized.stock = normalized.stock || 0;
+    normalized.minStock = normalized.minStock || 0;
+
+    return normalized;
+}
+
+export async function search(query) {
+    try {
+        const db = await getDatabase();
+        const response = await db.products.list({ include_docs: true });
+        const products = response.rows.map(row => row.doc);
+        
+        // Implementar búsqueda en memoria
+        const searchTerms = query.toLowerCase().split(' ');
+        return products.filter(product => {
+            const searchText = `${product.name} ${product.description}`.toLowerCase();
+            return searchTerms.every(term => searchText.includes(term));
+        });
+    } catch (error) {
+        console.error('Error en search:', error);
+        return [];
+    }
+}

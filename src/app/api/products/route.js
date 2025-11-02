@@ -8,7 +8,11 @@ export async function GET() {
         // Deshabilitar cache para siempre devolver datos frescos
         return NextResponse.json(results, { next: { revalidate: 0 } });
     } catch (error) {
-        return NextResponse.json({ message: error.message }, { status: 500 });
+        console.error('Error al obtener productos:', error);
+        return NextResponse.json({ 
+            message: 'Error al obtener productos', 
+            details: error.statusCode ? `Error de CouchDB: ${error.message}` : error.message 
+        }, { status: error.statusCode || 500 });
     }
 }
 

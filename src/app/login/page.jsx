@@ -1,155 +1,122 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react'; // Import useEffect
-import { useRouter } from 'next/navigation';
-import Headers from '@/components/Headers/page'; // CORREGIDO: El componente se llama Headers
-import Link from 'next/link';
-import Footer from '@/components/Footer/page';
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Headers from "@/components/Headers/page";
+import Footer from "@/components/Footer/page";
+import Link from "next/link";
 
 export default function Login() {
-    const router = useRouter();
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [loginError, setLoginError] = useState('');
-    const {  loading = false, error } = {};
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [faceLoading, setFaceLoading] = useState(false);
+  const videoRef = useRef(null);
 
-    // Check if user is already logged in on component mount
-    useEffect(() => {
-        const loggedInUser = localStorage.getItem('loggedInUser');
-        if (typeof window !== 'undefined' && loggedInUser) {
-            const user = JSON.parse(loggedInUser);
-            // CORREGIDO: Redirigir al panel correcto según el rol del usuario ya logueado.
-            redirectByRole(user.rol);
-        }
-    }, [router]);
-    const redirectByRole = (rol) => {
-        const routes = {
-            SUPERUSER: '/superUser',
-            Administrador: '/admin',
-            Cliente: '/clientes',
-        };
-        router.push(routes[rol] || '/');
-    };
+  useEffect(() => {
+    (async () => {
+      try {
+        // Inicializar TensorFlow.js primero
+        const tf = await import('@tensorflow/tfjs');
+        await tf.setBackend('webgl');
+        await tf.ready();
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoginError('');
+        const faceapi = await import("face-api.js");
+        const MODEL_URL = "/models";
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        try { await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL); } catch (e) { /* optional */ }
+        setModelsLoaded(true);
+      } catch (e) {
+        console.error(e);
+        setLoginError("Error al cargar los modelos de reconocimiento facial.");
+      }
+    })();
+  }, []);
 
-        if (!email.includes('@')) {
-            setLoginError('El correo electrónico no es válido.');
-            return;
-        }
+  const redirectByRole = (rol) => {
+    const map = { SUPERUSER: "/superUser", Administrador: "/admin", Cliente: "/clientes" };
+    router.push(map[rol] || "/");
+  };
 
-        try {
-            const res = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setLoginError("");
+    try {
+      const res = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Error al iniciar sesión");
+      localStorage.setItem("loggedInUser", JSON.stringify(data.user));
+      redirectByRole(data.user?.rol);
+    } catch (err) {
+      setLoginError(err.message || "Error de conexión");
+    } finally { setLoading(false); }
+  };
 
-            const data = await res.json();
-            if (!res.ok) {
-                setLoginError(data.message || 'Error al iniciar sesión');
-                return;
-            }
+  const startFaceLogin = async () => {
+    if (!modelsLoaded) { setLoginError("Modelos no cargados"); return; }
+    setFaceLoading(true); setLoginError("");
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) videoRef.current.srcObject = s;
+      await new Promise(r => { videoRef.current.onloadedmetadata = r; videoRef.current.play(); });
+      const faceapi = await import("face-api.js");
+      const detection = await faceapi.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+      if (!detection) throw new Error("No se detectó rostro");
+      const res = await fetch("/api/auth/face-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ faceDescriptor: Array.from(detection.descriptor) }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "No reconocido");
+      localStorage.setItem("loggedInUser", JSON.stringify(data.user));
+      redirectByRole(data.user?.rol);
+    } catch (e) {
+      setLoginError(e.message || "Error reconocimiento facial");
+    } finally {
+      setFaceLoading(false);
+      try { const s = videoRef.current?.srcObject; s?.getTracks?.().forEach(t => t.stop()); } catch (_) {}
+    }
+  };
 
-            const user = data.user;
-            localStorage.setItem('loggedInUser', JSON.stringify({ id: user.id, nombre: user.nombre, rol: user.rol }));
-            alert(`¡Bienvenido, ${user.nombre}! Redirigiendo...`);
-            redirectByRole(user.rol);
-        } catch (err) {
-            setLoginError(err.message || 'Error al conectar con el servidor');
-        }
-    };
+  const stopCamera = () => { try { const s = videoRef.current?.srcObject; s?.getTracks?.().forEach(t => t.stop()); } catch (_) {} setFaceLoading(false); };
 
-    return (
-        <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-100 via-yellow-100 to-pink-100">
-            <div className="w-full">
-                <Headers />
+  return (
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-100 via-yellow-100 to-pink-100">
+      <Headers/>
+      <main className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white p-6 rounded shadow">
+          {faceLoading && (
+            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-60">
+              <h2 className="text-white mb-4">Mirando a la cámara...</h2>
+              <video ref={videoRef} autoPlay muted className="w-80 h-56 bg-black rounded" />
+              <button onClick={stopCamera} className="mt-4 px-4 py-2 bg-red-500 text-white rounded">Cancelar</button>
             </div>
-            <div className="flex-1 flex items-center justify-center my-10">
-                <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
-                <div className="flex flex-col items-center mb-6">
-                    <div className="bg-blue-100 rounded-full p-4 mb-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 text-blue-500">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a8.25 8.25 0 1115 0v.75A2.25 2.25 0 0117.25 23h-10.5A2.25 2.25 0 014.5 21v-.75z" />
-                        </svg>
-                    </div>
-                    <h1 className="text-3xl font-bold text-center text-gray-800">Iniciar Sesión</h1>
-                </div>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label htmlFor="email" className="block text-gray-700 text-sm font-bold mb-2">
-                            Correo Electrónico
-                        </label>
-                        <input
-                            type="email"
-                            id="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="shadow appearance-none border border-blue-200 rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300"
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="password" className="block text-gray-700 text-sm font-bold mb-2">
-                            Contraseña
-                        </label>
-                        <input
-                            type="password"
-                            id="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="shadow appearance-none border border-yellow-200 rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-yellow-300"
-                            required
-                        />
-                        {loginError && (
-                            <p className="text-red-500 text-xs italic mt-2 text-center">{loginError}</p>
-                        )}
-                    </div>
-                    <div className="text-right text-sm">
-                        <Link href="/forgot-password" className="font-medium text-blue-500 hover:text-blue-600">
-                            ¿Olvidaste tu contraseña?
-                        </Link>
-                    </div>
-                    <button
-                        type="submit"
-                        className="bg-gradient-to-r from-blue-500 via-yellow-400 to-pink-400 hover:from-blue-600 hover:via-yellow-500 hover:to-pink-500 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-300 w-full flex justify-center items-center disabled:bg-gray-400 transition-all duration-200"
-                        disabled={loading}
-                    >
-                        {loading ? (
-                            <span className="flex items-center">
-                                <svg className="animate-spin h-5 w-5 mr-2 text-white" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                                </svg>
-                                Cargando...
-                            </span>
-                        ) : 'Ingresar'}
-                    </button>
-                </form>
-                <div className="text-center mt-6">
-                    <p className="text-sm text-gray-600">
-                        ¿No tienes una cuenta?{' '}
-                        <Link href="/register" className="font-medium text-blue-500 hover:text-blue-600">
-                            Regístrate aquí
-                        </Link>
-                    </p>
-                </div>
-                </div>
-            </div>
-            <div className="w-full mt-8">
-                <Footer />
-            </div>
-            <style jsx>{`
-                .animate-fade-in {
-                    animation: fadeIn 0.7s ease;
-                }
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(20px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-            `}</style>
+          )}
+
+          <h1 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h1>
+
+          <button onClick={startFaceLogin} disabled={!modelsLoaded || faceLoading} className="w-full mb-4 px-3 py-2 rounded bg-green-500 text-white">
+            {modelsLoaded ? 'Iniciar con Face ID' : 'Cargando Face ID...'}
+          </button>
+
+          {loginError && <div className="mb-3 text-red-600">{loginError}</div>}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <input type="email" placeholder="Correo" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-2 border rounded" />
+            <input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2 border rounded" />
+            <div className="text-right"><Link href="/forgot-password" className="text-sm text-blue-600">¿Olvidaste tu contraseña?</Link></div>
+            <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-2 rounded">{loading ? 'Ingresando...' : 'Ingresar'}</button>
+          </form>
+
+          <div className="mt-4 text-center">
+            <p className="text-sm">¿No tienes una cuenta? <Link href="/register" className="text-blue-600">Regístrate</Link></p>
+          </div>
         </div>
-    );
+      </main>
+      <Footer/>
+    </div>
+  );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
@@ -15,10 +15,62 @@ export default function RegisterPage() {
         contraseña: '',
         verificarContraseña: '',
         rol: 'Cliente',
+        faceDescriptor: null, // Campo para el descriptor facial
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [modelsLoaded, setModelsLoaded] = useState(false);
+    const [faceLoading, setFaceLoading] = useState(false);
+    const [faceRegistered, setFaceRegistered] = useState(false);
+    const videoRef = useRef();
 
+    useEffect(() => {
+        const loadModels = async () => {
+            try {
+                const faceapi = await import('face-api.js');
+                const MODEL_URL = '/models';
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                setModelsLoaded(true);
+            } catch (e) {
+                console.error("Error al cargar modelos de face-api:", e);
+                setError(`Error al cargar modelos de IA: ${e.message}. No se podrá registrar el rostro.`);
+            }
+        };
+        loadModels();
+    }, []);
+
+    const handleRegisterFace = async () => {
+        if (!modelsLoaded) {
+            setError("Los modelos de IA no han cargado. Intente de nuevo.");
+            return;
+        }
+        setFaceLoading(true);
+        setError('');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            videoRef.current.srcObject = stream;
+            await new Promise(resolve => { videoRef.current.onloadedmetadata = resolve; });
+            videoRef.current.play();
+
+            const faceapi = await import('face-api.js');
+            const detection = await faceapi.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+            
+            if (!detection) {
+                throw new Error("No se detectó ningún rostro. Asegúrese de estar bien iluminado.");
+            }
+
+            setFormData(prev => ({ ...prev, faceDescriptor: Array.from(detection.descriptor) }));
+            setFaceRegistered(true);
+        } catch (err) {
+            setError(err.message || "Error al registrar el rostro.");
+        } finally {
+            videoRef.current?.srcObject?.getTracks().forEach(track => track.stop());
+            setFaceLoading(false);
+        }
+    };
+    
     const handleInputChange = (e) => {
         const { id, value } = e.target;
         setFormData((prev) => ({ ...prev, [id]: value }));
@@ -79,6 +131,22 @@ export default function RegisterPage() {
             <div className="flex-1 flex items-center justify-center my-10">
                 <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
                     <h1 className="text-3xl font-bold text-center text-gray-800 mb-6">Registro de Usuario</h1>
+                    
+                    {faceLoading && (
+                        <div className="fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center z-50">
+                            <h2 className="text-white text-2xl mb-4">Mire a la cámara...</h2>
+                            <video ref={videoRef} width="320" height="240" autoPlay muted className="rounded-lg"></video>
+                            <button 
+                                onClick={() => {
+                                    videoRef.current?.srcObject?.getTracks().forEach(track => track.stop());
+                                    setFaceLoading(false);
+                                }} 
+                                className="mt-4 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600">
+                                Cancelar
+                            </button>
+                        </div>
+                    )}
+
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label htmlFor="nombre" className="block text-gray-700 text-sm font-bold mb-2">Nombre Completo</label>
@@ -99,6 +167,21 @@ export default function RegisterPage() {
                         <div>
                             <label htmlFor="verificarContraseña" className="block text-gray-700 text-sm font-bold mb-2">Verificar Contraseña</label>
                             <input type="password" id="verificarContraseña" value={formData.verificarContraseña} onChange={handleInputChange} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-pink-400" required />
+                        </div>
+
+                        <div className="border-t pt-4">
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Reconocimiento Facial (Opcional)</label>
+                            <button
+                                type="button"
+                                onClick={handleRegisterFace}
+                                disabled={!modelsLoaded || faceRegistered}
+                                className={`w-full flex justify-center items-center py-2 px-4 border rounded-md shadow-sm text-sm font-medium text-white transition-colors ${
+                                    faceRegistered ? 'bg-green-600' : 
+                                    modelsLoaded ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-gray-400'
+                                }`}
+                            >
+                                {faceRegistered ? 'Rostro Registrado ✔' : (modelsLoaded ? 'Registrar Rostro' : 'Cargando IA...')}
+                            </button>
                         </div>
                         {error && (
                             <p className="text-red-500 text-xs italic text-center">{error}</p>

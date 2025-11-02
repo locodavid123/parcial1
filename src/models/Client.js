@@ -1,61 +1,86 @@
-import { ObjectId } from 'mongodb';
-import getDb from '@/app/config/mongo';
-
-const COLLECTION = 'clientes';
-
-async function collection() {
-  const db = await getDb();
-  return db.collection(COLLECTION);
-}
+import getDatabase from '@/app/config/couchdb.js';
 
 export async function findAll() {
-  const col = await collection();
-  return col.find({}).sort({ createdAt: 1 }).toArray();
+    try {
+        const db = await getDatabase();
+        const response = await db.clients.list({ include_docs: true });
+        const docs = response.rows.map(row => row.doc);
+        
+        // Ordenar por createdAt
+        return docs.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } catch (error) {
+        console.error('Error en findAll:', error);
+        return [];
+    }
 }
 
 export async function findById(id) {
-  try {
-    const _id = new ObjectId(id);
-    const col = await collection();
-    return col.findOne({ _id });
-  } catch (e) {
-    return null;
-  }
+    try {
+        const db = await getDatabase();
+        return await db.clients.get(id);
+    } catch (error) {
+        if (error.statusCode === 404) {
+            return null;
+        }
+        console.error('Error en findById:', error);
+        throw error;
+    }
 }
 
 export async function create(payload, options = {}) {
-  const col = await collection();
-  const now = new Date();
-  const doc = { ...payload, createdAt: now, updatedAt: now };
-  const res = await col.insertOne(doc, options);
-  return { _id: res.insertedId, ...doc };
+    try {
+        const db = await getDatabase();
+        const now = new Date().toISOString();
+        const doc = { ...payload, createdAt: now, updatedAt: now };
+        
+        const response = await db.clients.insert(doc);
+        return { ...doc, _id: response.id, _rev: response.rev };
+    } catch (error) {
+        console.error('Error en create:', error);
+        throw error;
+    }
 }
 
-export async function updateById(id, payload) {
-  const col = await collection();
-  try {
-    const _id = new ObjectId(id);
-    const now = new Date();
-    const res = await col.findOneAndUpdate(
-      { _id },
-      { $set: { ...payload, updatedAt: now } },
-      { returnDocument: 'after' }
-    );
-    return res.value;
-  } catch (e) {
-    return null;
-  }
+export async function update(id, payload) {
+    try {
+        const db = await getDatabase();
+        const existingDoc = await db.clients.get(id);
+        
+        const updatedDoc = {
+            ...existingDoc,
+            ...payload,
+            _id: id,
+            _rev: existingDoc._rev,
+            updatedAt: new Date().toISOString()
+        };
+        
+        const response = await db.clients.insert(updatedDoc);
+        return { ...updatedDoc, _rev: response.rev };
+    } catch (error) {
+        console.error('Error en update:', error);
+        throw error;
+    }
 }
 
-export async function deleteById(id) {
-  const col = await collection();
-  try {
-    const _id = new ObjectId(id);
-    const res = await col.findOneAndDelete({ _id });
-    return res.value;
-  } catch (e) {
-    return null;
-  }
+export async function remove(id) {
+    try {
+        const db = await getDatabase();
+        const doc = await db.clients.get(id);
+        return await db.clients.destroy(id, doc._rev);
+    } catch (error) {
+        console.error('Error en remove:', error);
+        throw error;
+    }
 }
 
-export default { findAll, findById, create, updateById, deleteById };
+export async function findByEmail(email) {
+    try {
+        const db = await getDatabase();
+        const response = await db.clients.list({ include_docs: true });
+        const clients = response.rows.map(row => row.doc);
+        return clients.find(client => client.email === email) || null;
+    } catch (error) {
+        console.error('Error en findByEmail:', error);
+        return null;
+    }
+}

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { ObjectId, Int32, Double } from 'mongodb';
-import getDb, { getClient } from '@/app/config/mongo';
-import { create as createClient } from '@/models/Client'; // Importar el modelo de Cliente
+import getDatabase from '@/app/config/couchdb';
+import { create as createClient } from '@/models/Client';
 
 function toObjectId(id) {
     try {

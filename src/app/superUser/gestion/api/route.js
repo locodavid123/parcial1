@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { findAll, findByEmail, create as createUser, updateById as updateUserById, deleteById as deleteUserById } from '@/models/User';
+import * as User from '@/models/User';
 import { create as createClient } from '@/models/Client';
-import { getClient, getDb } from '@/app/config/mongo';
-import { Int32 } from 'mongodb'; // 1. Importar Int32
+import getDatabase from '@/app/config/couchdb.js';
 import bcrypt from 'bcryptjs';
 
 export async function GET(request) {
@@ -12,10 +11,10 @@ export async function GET(request) {
 
         const query = rol ? { rol } : {};
 
-        const users = await findAll(query);
+        const users = await User.findAll(query);
         // Ocultar la contraseña de todos los usuarios en la respuesta
         const safeUsers = users.map(user => {
-            const { contraseña, ...safeUser } = user;
+            const { contraseña, _rev, ...safeUser } = user;
             return safeUser;
         });
         return NextResponse.json(safeUsers);
@@ -27,7 +26,7 @@ export async function GET(request) {
 
 export async function POST(request) {
     const payload = await request.json();
-    const { nombre, correo, contraseña, rol, telefono } = payload;
+    const { nombre, correo, contraseña, rol, telefono, faceDescriptor } = payload;
 
     // Validación básica de los datos
     if (!nombre || !correo || !contraseña || !rol || !telefono) {
@@ -45,52 +44,49 @@ export async function POST(request) {
         return NextResponse.json({ message: "La contraseña debe tener al menos 6 caracteres." }, { status: 400 });
     }
 
-    const client = await getClient();
-    const session = client.startSession();
-
     try {
-        let createdUser;
-        await session.withTransaction(async () => {
-            // 1. Verificar si el correo ya existe
-            const existingUser = await findByEmail(correo, { session });
+        // 1. Verificar si el correo ya existe
+            const existingUser = await User.findByEmail(correo);
             if (existingUser) {
-                // Lanzar un error específico que será capturado por el bloque catch
-                const error = new Error("El correo electrónico ya está en uso.");
-                error.status = 409; // HTTP 409 Conflict
-                throw error;
-            }
+                return NextResponse.json({ 
+                    message: "El correo electrónico ya está en uso." 
+                }, { status: 409 });
+            }        // En producción, hashea la contraseña antes de guardarla
+        const hashed = await bcrypt.hash(String(contraseña), 10);
 
-            // En producción, hashea la contraseña antes de guardarla
-            const hashed = await bcrypt.hash(String(contraseña), 10);
+        // 2. Guardar el teléfono como string
+        const userDoc = { 
+            nombre, 
+            correo, 
+            contraseña: hashed, 
+            rol, 
+            telefono,
+            ...(faceDescriptor && { faceDescriptor }) // Añadir solo si existe
+        };
+        
+        // Crear el usuario
+        const createdUser = await User.create(userDoc);
 
-            // 2. Guardar el teléfono como string
-            const userDoc = { nombre, correo, contraseña: hashed, rol, telefono };
-            createdUser = await createUser(userDoc, { session });
-
-            // Si el rol es 'Cliente' o 'Administrador', crear también en la colección 'clientes'
-            if (rol === 'Cliente' || rol === 'Administrador') {
-                await createClient({
-                    nombre: createdUser.nombre,
-                    correo: createdUser.correo,
-                    telefono: telefono,
-                    usuario_id: createdUser._id // Vincular con el usuario recién creado
-                }, { session });
-            }
-
-        });
+        // Si el rol es 'Cliente' o 'Administrador', crear también en la colección 'clientes'
+        if (rol === 'Cliente' || rol === 'Administrador') {
+            await createClient({
+                nombre: createdUser.nombre,
+                correo: createdUser.correo,
+                telefono: telefono,
+                usuario_id: createdUser._id // Usar el ID de CouchDB
+            });
+        }
 
         // Ocultar la contraseña en la respuesta
-        const { contraseña: _, ...safeUser } = createdUser;
+        const { contraseña: _, _rev, ...safeUser } = createdUser;
 
         return NextResponse.json(safeUser, { status: 201 });
     } catch (error) {
         console.error(error);
-        // Devolver el status y mensaje del error si está definido (ej. 409)
-        const status = error.status || 500;
+        // Devolver el status y mensaje del error si está definido
+        const status = error.statusCode || 500;
         const message = error.message || 'Error al crear el usuario.';
         return NextResponse.json({ message }, { status });
-    } finally {
-        await session.endSession();
     }
 }
 
@@ -109,8 +105,6 @@ export async function PUT(request) {
             );
         }
 
-        // Iniciar una transacción para asegurar la atomicidad de la operación
-        let finalUpdatedUser;
         const updateData = {};
         if (rol) updateData.rol = rol;
         if (nombre) updateData.nombre = nombre;
@@ -121,34 +115,50 @@ export async function PUT(request) {
             return NextResponse.json({ message: "No se proporcionaron datos para actualizar." }, { status: 400 });
         }
 
-        await session.withTransaction(async () => {
-            const updatedUser = await updateUserById(_id, updateData, { session });
-            if (!updatedUser) {
-                const error = new Error("Usuario no encontrado.");
-                error.status = 404;
-                throw error;
-            }
+        const db = await getDatabase();
+        
+        // Actualizar usuario
+        const updatedUser = await User.updateById(_id, updateData);
+        if (!updatedUser) {
+            return NextResponse.json({ message: "Usuario no encontrado." }, { status: 404 });
+        }
 
-            // Si el rol es Cliente o Administrador, asegurarse de que exista en la colección 'clientes'
-            if (updateData.rol === 'Cliente' || updateData.rol === 'Administrador' || nombre || correo || telefono) {
-                const db = await getDb();
-                const clientCollection = db.collection('clientes');
-                // Usar upsert: si no existe un cliente con ese usuario_id, lo crea.
-                await clientCollection.updateOne(
-                    { usuario_id: updatedUser._id },
-                    { $set: { 
-                        nombre: nombre || updatedUser.nombre, 
-                        correo: correo || updatedUser.correo, 
-                        telefono: telefono || updatedUser.telefono
-                    } },
-                    { upsert: true, session }
-                );
-            }
-            finalUpdatedUser = updatedUser;
-        });
+        // Si el rol es Cliente o Administrador, o si se actualizaron datos relevantes, actualizar en clientes
+        if (updateData.rol === 'Cliente' || updateData.rol === 'Administrador' || nombre || correo || telefono) {
+            try {
+                // Buscar cliente existente
+                const response = await db.clients.list({ include_docs: true });
+                const existingClient = response.rows
+                    .map(row => row.doc)
+                    .find(doc => doc.usuario_id === _id);
 
-        // Ocultar la contraseña en la respuesta
-        const { contraseña, ...safeUser } = finalUpdatedUser;
+                const clientData = {
+                    nombre: nombre || updatedUser.nombre,
+                    correo: correo || updatedUser.correo,
+                    telefono: telefono || updatedUser.telefono,
+                    usuario_id: _id
+                };
+
+                if (existingClient) {
+                    // Actualizar cliente existente
+                    await db.clients.insert({
+                        ...existingClient,
+                        ...clientData,
+                        _id: existingClient._id,
+                        _rev: existingClient._rev
+                    });
+                } else {
+                    // Crear nuevo cliente
+                    await db.clients.insert(clientData);
+                }
+            } catch (error) {
+                console.error('Error al actualizar cliente:', error);
+                // No fallamos si no se puede actualizar el cliente
+            }
+        }
+
+        // Ocultar la contraseña y _rev en la respuesta
+        const { contraseña, _rev, ...safeUser } = updatedUser;
         return NextResponse.json(safeUser);
     } catch (error) {
         console.error(error);
@@ -161,8 +171,6 @@ export async function PUT(request) {
 }
 
 export async function DELETE(request) {
-    const client = await getClient();
-    const session = client.startSession();
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
@@ -171,28 +179,31 @@ export async function DELETE(request) {
             return NextResponse.json({ message: "Falta el ID del usuario." }, { status: 400 });
         }
 
-        let deletedUser;
-        await session.withTransaction(async () => {
-            // Borramos el usuario de la colección 'usuarios'
-            deletedUser = await deleteUserById(id, { session });
-            if (deletedUser) {
-                // Borramos el registro correspondiente de la colección 'clientes'
-                const db = await getDb();
-                await db.collection('clientes').deleteOne({ usuario_id: deletedUser._id }, { session });
-            }
-        });
+        const db = await getDatabase();
+        
+        // Primero borramos el usuario
+        await User.deleteById(id);
 
-        if (!deletedUser) {
-            return NextResponse.json({ message: "Usuario no encontrado para eliminar." }, { status: 404 });
+        // Luego buscamos y borramos el cliente asociado
+        try {
+            const response = await db.clients.list({ include_docs: true });
+            const client = response.rows
+                .map(row => row.doc)
+                .find(doc => doc.usuario_id === id);
+            
+            if (client) {
+                await db.clients.destroy(client._id, client._rev);
+            }
+        } catch (error) {
+            console.error('Error al eliminar cliente asociado:', error);
+            // No fallamos si no se puede eliminar el cliente
         }
 
         return NextResponse.json({ message: "Usuario eliminado" }, { status: 200 });
     } catch (error) {
         console.error(error);
-        const status = error.status || 500;
+        const status = error.statusCode || 500;
         const message = error.message || "Error al eliminar el usuario.";
         return NextResponse.json({ message }, { status });
-    } finally {
-        await session.endSession();
     }
 }
