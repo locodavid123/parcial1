@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
 import Link from 'next/link';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export default function SuperUserOrdersPage() {
     const router = useRouter();
@@ -78,6 +80,44 @@ export default function SuperUserOrdersPage() {
         }
     };
 
+    // Función para generar el PDF de un pedido
+    const generatePDF = (pedido) => {
+        const doc = new jsPDF();
+
+        // Título del documento
+        doc.setFontSize(20);
+        doc.text('Detalle del Pedido', 14, 22);
+
+        // Información del cliente y del pedido
+        doc.setFontSize(12);
+        doc.text(`ID del Pedido: ${pedido._id}`, 14, 32);
+        doc.text(`Cliente: ${pedido.cliente?.nombre || 'N/A'}`, 14, 38);
+        doc.text(`Correo: ${pedido.cliente?.correo || 'N/A'}`, 14, 44);
+        doc.text(`Fecha: ${new Date(pedido.fecha).toLocaleDateString()}`, 14, 50);
+
+        // Definir las columnas y filas para la tabla de productos
+        const tableColumn = ["Producto", "Cantidad", "Precio Unitario", "Subtotal"];
+        const tableRows = [];
+
+        pedido.detalles.forEach(item => {
+            const subtotal = (item.cantidad * item.precio_unitario).toFixed(2);
+            const rowData = [
+                item.producto_id, // Idealmente aquí tendrías el nombre del producto
+                item.cantidad,
+                `$${item.precio_unitario.toFixed(2)}`,
+                `$${subtotal}`
+            ];
+            tableRows.push(rowData);
+        });
+
+        // Generar la tabla
+        doc.autoTable(tableColumn, tableRows, { startY: 60 });
+        doc.text(`Total del Pedido: $${parseFloat(pedido.total).toFixed(2)}`, 14, doc.autoTable.previous.finalY + 10);
+
+        // Guardar el PDF
+        doc.save(`pedido_${pedido._id}.pdf`);
+    };
+
     // Función para dar estilo a los estados
     const getStatusClass = (status) => {
         switch (status) {
@@ -139,6 +179,12 @@ export default function SuperUserOrdersPage() {
                                                     <option value="completado">Completado</option>
                                                     <option value="cancelado">Cancelado</option>
                                                 </select>
+                                                <button
+                                                    onClick={() => generatePDF(pedido)}
+                                                    className="ml-2 bg-gray-500 text-white py-1 px-2 rounded hover:bg-gray-600 transition-colors text-xs"
+                                                >
+                                                    PDF
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
