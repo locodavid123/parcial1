@@ -71,29 +71,6 @@ export async function POST(request) {
             return NextResponse.json({ message: error.message }, { status: error.status });
         }
 
-        // Si Mongo devolvió detalles de validación (errInfo), extraer y dar formato legible
-        if (error && error.code === 121 && error.errInfo) {
-            const info = error.errInfo;
-            const details = info.details || info;
-            // Construir mensajes legibles a partir de details
-            let human = [];
-            try {
-                if (Array.isArray(details)) {
-                    human = details.map(d => `${d.property}: ${d.reason}`);
-                } else if (details && typeof details === 'object') {
-                    human = Object.keys(details).map(k => `${k}: ${JSON.stringify(details[k])}`);
-                } else {
-                    human = [String(details)];
-                }
-            } catch (e) {
-                human = [String(details)];
-            }
-
-            const message = human.length ? human.join(' | ') : 'Document failed validation';
-            console.error('Mongo validation details:', JSON.stringify(details, null, 2));
-            return NextResponse.json({ message, details }, { status: 400 });
-        }
-
         console.error('Unhandled error en POST /api/products:', error);
         return NextResponse.json({ message: error.message || 'Error interno' }, { status: 500 });
     }
@@ -102,7 +79,7 @@ export async function POST(request) {
 // PUT (update) a product
 export async function PUT(request) {
     // Corregido: Usar _id para consistencia con MongoDB
-    const { _id, nombre, descripcion, precio, stock, imageUrl } = await request.json();
+    const { _id, nombre, descripcion, precio, stock, imageUrl } = await request.json(); // El comentario sobre MongoDB puede ser confuso, pero _id también es usado por CouchDB.
 
     if (!_id) {
         return NextResponse.json({ message: "El ID del producto es requerido para actualizar" }, { status: 400 });
@@ -124,8 +101,8 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    // Validar que el ID es un ObjectId válido antes de proceder
-    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+    // Validar que el ID existe. La validación de formato ObjectId de Mongo se ha eliminado.
+    if (!id) {
         return NextResponse.json({ message: "ID de producto inválido" }, { status: 400 });
     }
 

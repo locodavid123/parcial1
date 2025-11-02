@@ -16,6 +16,10 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: '**.youtube.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'img.freepik.com',
       }
     ]
   }

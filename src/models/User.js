@@ -48,6 +48,21 @@ export async function findByFaceDescriptor(faceDescriptor) {
     }
 }
 
+export async function findByToken(query) {
+    // NOTA: Esta implementación es para CouchDB. La query original era para MongoDB.
+    // Para optimizar, se debería crear una vista por `passwordResetToken`.
+    const db = await getDatabase();
+    const response = await db.users.list({ include_docs: true });
+    const user = response.rows
+        .map(row => row.doc)
+        .find(doc => 
+            doc.passwordResetToken === query.passwordResetToken &&
+            new Date(doc.passwordResetExpires) > new Date()
+        );
+    
+    return user || null;
+}
+
 export async function findByEmail(email) {
     try {
         const db = await getDatabase();
@@ -74,7 +89,7 @@ export async function create(userData) {
 }
 
 export async function update(id, userData) {
-    return updateById(id, userData);
+    return updateUser(id, userData);
 }
 
 export async function updateById(id, userData) {
@@ -88,6 +103,11 @@ export async function updateById(id, userData) {
         console.error('Error en updateById:', error);
         throw error;
     }
+}
+
+export async function updateUser(id, data) {
+    // Reutiliza la lógica de CouchDB existente.
+    return updateById(id, data);
 }
 
 export async function deleteById(id) {

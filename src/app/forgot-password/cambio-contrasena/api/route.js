@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { collection as usersCollection, updateById } from '@/models/User';
+import { findByToken, updateUser } from '@/models/User';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -14,9 +14,8 @@ export async function POST(request) {
     // 1. Hashear el token que viene del cliente para compararlo con el de la BD
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    const col = await usersCollection();
     // 2. Buscar al usuario por el token hasheado y verificar que no haya expirado
-    const user = await col.findOne({
+    const user = await findByToken({
       passwordResetToken: hashedToken,
       passwordResetExpires: { $gt: new Date() },
     });
@@ -30,7 +29,7 @@ export async function POST(request) {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // 4. Actualizar la contraseña del usuario y limpiar los campos de reseteo
-    await updateById(user._id, {
+    await updateUser(user._id, {
       contraseña: hashedPassword,
       passwordResetToken: undefined,
       passwordResetExpires: undefined,

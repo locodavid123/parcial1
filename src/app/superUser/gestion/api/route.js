@@ -91,8 +91,6 @@ export async function POST(request) {
 }
 
 export async function PUT(request) {
-    const client = await getClient();
-    const session = client.startSession();
     try {
         // Usar _id para ser consistente con la base de datos
         const payload = await request.json();
@@ -165,8 +163,6 @@ export async function PUT(request) {
         const status = error.status || 500;
         const message = error.message || "Error al actualizar el usuario.";
         return NextResponse.json({ message }, { status });
-    } finally {
-        await session.endSession();
     }
 }
 

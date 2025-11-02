@@ -183,17 +183,46 @@ function normalizeProductData(data) {
 export async function search(query) {
     try {
         const db = await getDatabase();
-        const response = await db.products.list({ include_docs: true });
-        const products = response.rows.map(row => row.doc);
-        
-        // Implementar búsqueda en memoria
-        const searchTerms = query.toLowerCase().split(' ');
-        return products.filter(product => {
-            const searchText = `${product.name} ${product.description}`.toLowerCase();
-            return searchTerms.every(term => searchText.includes(term));
+        const searchTerms = query.toLowerCase().match(/\w+/g) || [];
+
+        if (searchTerms.length === 0) {
+            return [];
+        }
+
+        // Hacemos una consulta a la vista por cada término de búsqueda
+        const promises = searchTerms.map(term => 
+            db.products.view('products', 'by_keyword', { key: term })
+        );
+
+        const results = await Promise.all(promises);
+
+        // Si algún término no devuelve resultados, la intersección es vacía
+        if (results.some(res => res.rows.length === 0)) {
+            return [];
+        }
+
+        // Extraemos los IDs de cada resultado
+        const idSets = results.map(res => new Set(res.rows.map(row => row.value)));
+
+        // Calculamos la intersección de todos los conjuntos de IDs
+        const intersection = idSets.reduce((acc, currentSet) => {
+            return new Set([...acc].filter(id => currentSet.has(id)));
         });
+
+        if (intersection.size === 0) {
+            return [];
+        }
+
+        // Obtenemos los documentos completos para los IDs que coincidieron
+        const response = await db.products.fetch({ keys: [...intersection] });
+        return response.rows.map(row => row.doc);
     } catch (error) {
         console.error('Error en search:', error);
+        // Si la vista no existe, CouchDB devuelve un 404. Podríamos manejarlo aquí.
+        if (error.statusCode === 404) {
+            console.error("La vista de búsqueda 'products/by_keyword' no existe. Asegúrate de que se creó correctamente.");
+            return [];
+        }
         return [];
     }
 }
