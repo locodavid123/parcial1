@@ -93,10 +93,6 @@ export default function Login() {
 
           <h1 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h1>
 
-          <button onClick={startFaceLogin} disabled={!modelsLoaded || faceLoading} className="w-full mb-4 px-3 py-2 rounded bg-green-500 text-white">
-            {modelsLoaded ? 'Iniciar con Face ID' : 'Cargando Face ID...'}
-          </button>
-
           {loginError && <div className="mb-3 text-red-600">{loginError}</div>}
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -105,6 +101,14 @@ export default function Login() {
             <div className="text-right"><Link href="/forgot-password" className="text-sm text-blue-600">¿Olvidaste tu contraseña?</Link></div>
             <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-2 rounded">{loading ? 'Ingresando...' : 'Ingresar'}</button>
           </form>
+
+          <div className="my-4 flex items-center before:flex-1 before:border-t before:border-gray-300 after:flex-1 after:border-t after:border-gray-300">
+            <p className="mx-4 mb-0 text-center font-semibold text-gray-500">O</p>
+          </div>
+
+          <button onClick={startFaceLogin} disabled={!modelsLoaded || faceLoading} className="w-full px-3 py-2 rounded bg-green-500 text-white disabled:bg-gray-400">
+            {modelsLoaded ? 'Iniciar con Face ID' : 'Cargando Face ID...'}
+          </button>
 
           <div className="mt-4 text-center">
             <p className="text-sm">¿No tienes una cuenta? <Link href="/register" className="text-blue-600">Regístrate</Link></p>
