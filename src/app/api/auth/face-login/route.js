@@ -3,14 +3,14 @@ import * as User from '@/models/User';
 
 export async function POST(request) {
     try {
-        const { faceDescriptor } = await request.json();
+        const { email, faceDescriptor } = await request.json();
 
-        if (!faceDescriptor || !Array.isArray(faceDescriptor)) {
-            return NextResponse.json({ message: 'Datos biométricos inválidos.' }, { status: 400 });
+        if (!email || !faceDescriptor || !Array.isArray(faceDescriptor)) {
+            return NextResponse.json({ message: 'Correo o datos biométricos inválidos.' }, { status: 400 });
         }
 
         // Buscar usuario por descriptor facial
-        const user = await User.findByFaceDescriptor(faceDescriptor);
+        const user = await User.findByFaceDescriptor(faceDescriptor, email);
 
         if (!user) {
             return NextResponse.json(

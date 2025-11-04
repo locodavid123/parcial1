@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Headers from "@/components/Headers/page";
 import Footer from "@/components/Footer/page";
 import Link from "next/link";
+import * as faceapi from 'face-api.js';
 
 export default function Login() {
   const router = useRouter();
@@ -19,7 +20,6 @@ export default function Login() {
   useEffect(() => {
     (async () => {
       try {
-        const faceapi = await import("face-api.js");
         const MODEL_URL = "/models";
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
@@ -54,16 +54,19 @@ export default function Login() {
   };
 
   const startFaceLogin = async () => {
+    if (!email) {
+      setLoginError("Por favor, ingrese su correo electrónico antes de usar Face ID.");
+      return;
+    }
     if (!modelsLoaded) { setLoginError("Modelos no cargados"); return; }
     setFaceLoading(true); setLoginError("");
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: true });
       if (videoRef.current) videoRef.current.srcObject = s;
       await new Promise(r => { videoRef.current.onloadedmetadata = r; videoRef.current.play(); });
-      const faceapi = await import("face-api.js");
       const detection = await faceapi.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
       if (!detection) throw new Error("No se detectó rostro");
-      const res = await fetch("/api/auth/face-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ faceDescriptor: Array.from(detection.descriptor) }) });
+      const res = await fetch("/api/auth/face-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, faceDescriptor: Array.from(detection.descriptor) }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "No reconocido");
       localStorage.setItem("loggedInUser", JSON.stringify(data.user));

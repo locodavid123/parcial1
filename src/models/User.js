@@ -35,14 +35,22 @@ export async function findById(id) {
     }
 }
 
-export async function findByFaceDescriptor(faceDescriptor) {
+export async function findByFaceDescriptor(faceDescriptor, email) {
     try {
         const db = await getDatabase();
-        const response = await db.users.list({ include_docs: true });
-        const users = response.rows.map(row => row.doc)
-            .filter(user => user.faceDescriptors && user.faceDescriptors.length > 0);
+        
+        // Si se proporciona un email, buscar solo ese usuario. Si no, buscar en todos.
+        let usersToSearch = [];
+        if (email) {
+            const user = await findByEmail(email);
+            if (user) usersToSearch.push(user);
+        } else {
+            const response = await db.users.list({ include_docs: true });
+            usersToSearch = response.rows.map(row => row.doc)
+                .filter(user => user.faceDescriptors && user.faceDescriptors.length > 0);
+        }
 
-        // Convert incoming descriptor to numbers (in case comes as strings)
+        // Convert incoming descriptor to numbers (in case it comes as strings)
         const target = Array.isArray(faceDescriptor) ? faceDescriptor.map(Number) : [];
         if (target.length === 0) return null;
 
@@ -50,7 +58,7 @@ export async function findByFaceDescriptor(faceDescriptor) {
         const distance = (a, b) => {
             let s = 0;
             for (let i = 0; i < a.length && i < b.length; i++) {
-                const d = (a[i] - b[i]);
+                const d = a[i] - b[i];
                 s += d * d;
             }
             return Math.sqrt(s);
@@ -58,7 +66,7 @@ export async function findByFaceDescriptor(faceDescriptor) {
 
         const THRESHOLD = 0.6; // valor típico para face-api.js
 
-        for (const user of users) {
+        for (const user of usersToSearch) {
             // Soportar tanto `faceDescriptors` (array) como `faceDescriptor` (único)
             const storedList = user.faceDescriptors || (user.faceDescriptor ? [user.faceDescriptor] : []);
             for (const stored of storedList) {
