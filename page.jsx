@@ -6,7 +6,7 @@ import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
 import Link from 'next/link';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 export default function SuperUserOrdersPage() {
     const router = useRouter();
@@ -86,7 +86,7 @@ export default function SuperUserOrdersPage() {
 
         // Título del documento
         doc.setFontSize(20);
-        doc.text('Detalle del Pedido', 14, 22);
+        doc.text('Recibo de Compra', 14, 22);
 
         // Información del cliente y del pedido
         doc.setFontSize(12);
@@ -111,11 +111,11 @@ export default function SuperUserOrdersPage() {
         });
 
         // Generar la tabla
-        doc.autoTable(tableColumn, tableRows, { startY: 60 });
-        doc.text(`Total del Pedido: $${parseFloat(pedido.total).toFixed(2)}`, 14, doc.autoTable.previous.finalY + 10);
+        autoTable(doc, { head: [tableColumn], body: tableRows, startY: 60 });
+        doc.text(`Total del Pedido: $${parseFloat(pedido.total).toFixed(2)}`, 14, doc.lastAutoTable.finalY + 10);
 
-        // Guardar el PDF
-        doc.save(`pedido_${pedido._id}.pdf`);
+        // Abrir el PDF en una nueva pestaña para visualizarlo
+        doc.output('dataurlnewwindow');
     };
 
     // Función para dar estilo a los estados
@@ -153,38 +153,32 @@ export default function SuperUserOrdersPage() {
                                         <th className="py-3 px-6 text-left">Fecha</th>
                                         <th className="py-3 px-6 text-right">Total</th>
                                         <th className="py-3 px-6 text-center">Estado</th>
-                                        <th className="py-3 px-6 text-center">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-gray-700 text-sm">
                                     {pedidos.map((pedido) => (
-                                        <tr key={pedido._id} className="border-b border-gray-200 hover:bg-gray-50">
+                                        <tr 
+                                            key={pedido._id} 
+                                            className="border-b border-gray-200 hover:bg-gray-100 cursor-pointer"
+                                            onClick={() => generatePDF(pedido)}
+                                            title="Haz clic para ver el recibo"
+                                        >
                                             <td className="py-3 px-6 text-left whitespace-nowrap font-mono">{pedido._id.slice(-6)}</td>
                                             <td className="py-3 px-6 text-left">{pedido.cliente?.nombre || 'N/A'}</td>
                                             <td className="py-3 px-6 text-left">{new Date(pedido.fecha).toLocaleDateString()}</td>
                                             <td className="py-3 px-6 text-right font-semibold">${parseFloat(pedido.total).toFixed(2)}</td>
                                             <td className="py-3 px-6 text-center">
-                                                <span className={`py-1 px-3 rounded-full text-xs font-semibold ${getStatusClass(pedido.estatus)}`}>
-                                                    {pedido.estatus}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-6 text-center">
                                                 <select
                                                     value={pedido.estatus}
-                                                    onChange={(e) => handleUpdateStatus(pedido._id, e.target.value)}
+                                                    onChange={(e) => { e.stopPropagation(); handleUpdateStatus(pedido._id, e.target.value); }}
                                                     disabled={updatingStatus === pedido._id}
-                                                    className="border rounded p-1 text-xs disabled:opacity-50"
+                                                    className={`border rounded p-1 text-xs disabled:opacity-50 ${getStatusClass(pedido.estatus)}`}
+                                                    onClick={(e) => e.stopPropagation()} // Evita que el clic en el select genere el PDF
                                                 >
                                                     <option value="pendiente">Pendiente</option>
                                                     <option value="completado">Completado</option>
                                                     <option value="cancelado">Cancelado</option>
                                                 </select>
-                                                <button
-                                                    onClick={() => generatePDF(pedido)}
-                                                    className="ml-2 bg-gray-500 text-white py-1 px-2 rounded hover:bg-gray-600 transition-colors text-xs"
-                                                >
-                                                    PDF
-                                                </button>
                                             </td>
                                         </tr>
                                     ))}

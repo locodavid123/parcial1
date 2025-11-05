@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation'; // Importar el contexto del carrito
+import { useRouter } from 'next/navigation';
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function ClientePage() {
     const [user, setUser] = useState(null);
@@ -81,6 +83,40 @@ export default function ClientePage() {
         }
     };
 
+    const generatePDF = (pedido) => {
+        const doc = new jsPDF();
+
+        // Título del documento
+        doc.setFontSize(20);
+        doc.text('Recibo de Compra', 14, 22);
+
+        // Información del cliente y del pedido
+        doc.setFontSize(12);
+        doc.text(`ID del Pedido: ${pedido._id}`, 14, 32);
+        doc.text(`Cliente: ${user?.nombre || 'N/A'}`, 14, 38);
+        doc.text(`Correo: ${user?.correo || 'N/A'}`, 14, 44);
+        doc.text(`Fecha: ${new Date(pedido.fecha).toLocaleDateString()}`, 14, 50);
+
+        // Definir las columnas y filas para la tabla de productos
+        const tableColumn = ["Producto", "Cantidad", "Precio Unitario", "Subtotal"];
+        const tableRows = [];
+
+        pedido.detalles.forEach(item => {
+            const subtotal = (item.cantidad * item.precio_unitario).toFixed(2);
+            const rowData = [
+                item.producto_id, // Idealmente aquí se mostraría el nombre del producto
+                item.cantidad,
+                `$${item.precio_unitario.toFixed(2)}`,
+                `$${subtotal}`
+            ];
+            tableRows.push(rowData);
+        });
+
+        autoTable(doc, { head: [tableColumn], body: tableRows, startY: 60 });
+        doc.text(`Total del Pedido: $${parseFloat(pedido.total).toFixed(2)}`, 14, doc.lastAutoTable.finalY + 10);
+        doc.output('dataurlnewwindow');
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -147,8 +183,14 @@ export default function ClientePage() {
                                                     <p className="text-gray-800 font-semibold">
                                                         Total: ${parseFloat(pedido.total).toFixed(2)}
                                                     </p>
-                                                    {pedido.estatus === 'pendiente' && (
-                                                        <div className="mt-4 text-right">
+                                                    <div className="mt-4 flex justify-end items-center space-x-4">
+                                                        <button
+                                                            onClick={() => generatePDF(pedido)}
+                                                            className="bg-gray-500 text-white text-sm py-1 px-3 rounded-md hover:bg-gray-600 transition-colors"
+                                                        >
+                                                            Ver Recibo
+                                                        </button>
+                                                        {pedido.estatus === 'pendiente' && (
                                                             <button
                                                                 onClick={() => handleCancelOrder(pedido._id)}
                                                                 disabled={cancelingId === pedido._id}
@@ -156,8 +198,8 @@ export default function ClientePage() {
                                                             >
                                                                 {cancelingId === pedido._id ? 'Cancelando...' : 'Cancelar Pedido'}
                                                             </button>
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </li>
                                         ))}
