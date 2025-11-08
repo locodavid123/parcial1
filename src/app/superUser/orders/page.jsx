@@ -76,10 +76,10 @@ export default function SuperUserOrdersPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
                             {/* Reportes Generales */}
                             <div className="flex flex-col sm:flex-row gap-4 text-base">
-                                <a href="/api/reports/sales" download className="bg-blue-500 text-white text-center font-medium py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">
+                                <a href="/api/report/reporte-ventas" download className="bg-blue-500 text-white text-center font-medium py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">
                                     Reporte de Ventas
                                 </a>
-                                <a href="/api/reports/stock" download className="bg-green-500 text-black text-center font-medium py-2 px-4 rounded-md hover:bg-green-600 transition-colors">
+                                <a href="/api/report/reporte-stock" download className="bg-green-500 text-white text-center font-medium py-2 px-4 rounded-md hover:bg-green-600 transition-colors">
                                     Reporte de Stock
                                 </a>
                             </div>
