@@ -1,22 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import Headers from '@/components/Headers/page';
 import Footer from '@/components/Footer/page';
-import Link from 'next/link';
 
-// Hook para manejar los pedidos
-function useOrders() {
+export default function SuperUserOrdersPage() {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState('');
+    const [clientQuery, setClientQuery] = useState('');
 
-    const fetchOrders = useCallback(async () => {
+    useEffect(() => {
+        fetchOrders();
+    }, []);
+
+    const fetchOrders = async () => {
         setLoading(true);
+        setError('');
         try {
             const res = await fetch('/api/orders');
-            if (!res.ok) throw new Error('Error al cargar los pedidos');
+            if (!res.ok) {
+                throw new Error('No se pudieron cargar los pedidos.');
+            }
             const data = await res.json();
             setOrders(data);
         } catch (err) {
@@ -24,148 +29,131 @@ function useOrders() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    };
 
-    useEffect(() => {
-        fetchOrders();
-    }, [fetchOrders]);
-
-    return { orders, loading, error, fetchOrders };
-}
-
-export default function OrderManagementPage() {
-    const { orders, loading, error, fetchOrders } = useOrders();
-
-    // Función para descargar el PDF de pedidos
-    const handleDownloadPDF = async () => {
-        try {
-            // Apuntar al endpoint correcto para el reporte de pedidos
-            const res = await fetch('/api/orders/print');
-            if (!res.ok) throw new Error('No se pudo generar el PDF');
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'reporte_pedidos.pdf';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-        } catch (err) {
-            alert(`Error: ${err.message}`);
+    const handleClientReport = (e) => {
+        e.preventDefault();
+        if (clientQuery.trim()) {
+            // Redirige para iniciar la descarga del archivo
+            window.location.href = `/api/reports/client-purchases?query=${encodeURIComponent(clientQuery)}`;
+        } else {
+            alert('Por favor, ingrese un nombre o ID de cliente.');
         }
     };
 
-    const handleUpdateStatus = async (orderId, newStatus) => {
+    const handleStatusChange = async (orderId, newStatus) => {
         try {
             const res = await fetch(`/api/orders?id=${orderId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus.toLowerCase() }),
+                body: JSON.stringify({ status: newStatus }),
             });
+
             if (!res.ok) {
-                const errorData = await res.json().catch(() => ({ message: 'Error al actualizar el estado' }));
-                throw new Error(errorData.message);
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'No se pudo actualizar el estado del pedido.');
             }
-            fetchOrders(); // Recargar pedidos
-            alert('¡Estado del pedido actualizado exitosamente!');
+
+            // Actualizar la lista de pedidos para reflejar el cambio
+            setOrders(prevOrders =>
+                prevOrders.map(o => o._id === orderId ? { ...o, estatus: newStatus } : o)
+            );
         } catch (err) {
-            alert(`Error: ${err.message}`);
-        }
-    };
-
-    const handleDeleteOrder = async (orderId) => {
-        if (window.confirm(`¿Estás seguro de que quieres eliminar el pedido #${orderId.slice(-6)}?`)) {
-            try {
-                const res = await fetch(`/api/orders?id=${orderId}`, { method: 'DELETE' });
-                if (!res.ok) throw new Error('Error al eliminar el pedido');
-                fetchOrders(); // Recargar pedidos
-            } catch (err) {
-                alert(`Error: ${err.message}`);
-            }
-        }
-    };
-
-    const getStatusClass = (status) => {
-        switch (status) {
-            case 'completado': return 'bg-green-200 text-green-800';
-            case 'enviado': return 'bg-blue-200 text-blue-800';
-            case 'cancelado': return 'bg-red-200 text-red-800';
-            default: return 'bg-yellow-200 text-yellow-800'; // 'pendiente'
+            setError(err.message);
         }
     };
 
     return (
-        <main>
+        <>
             <Headers />
-            <div className="container mx-auto px-4 py-8 min-h-screen">
-                <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-4xl font-bold text-gray-800">Gestión de Pedidos</h1>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={handleDownloadPDF}
-                            className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition-colors"
-                        >
-                            Descargar PDF
-                        </button>
-                        <Link href="/superUser" className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
-                            &larr; Volver al Panel
-                        </Link>
-                    </div>
-                </div>
-
+            <main className="container mx-auto px-4 py-8 min-h-screen">
                 <div className="bg-white p-6 rounded-lg shadow-md">
+                    <h1 className="text-3xl font-bold text-black mb-6">Gestión de Pedidos y Reportes</h1>
+
+                    {/* Sección de Reportes */}
+                    <div className="mb-8 p-4 border rounded-lg bg-gray-50">
+                        <h2 className="text-xl font-semibold mb-4 text-black">Generación de Reportes</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                            {/* Reportes Generales */}
+                            <div className="flex flex-col sm:flex-row gap-4 text-base">
+                                <a href="/api/reports/sales" download className="bg-blue-500 text-white text-center font-medium py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">
+                                    Reporte de Ventas
+                                </a>
+                                <a href="/api/reports/stock" download className="bg-green-500 text-black text-center font-medium py-2 px-4 rounded-md hover:bg-green-600 transition-colors">
+                                    Reporte de Stock
+                                </a>
+                            </div>
+
+                            {/* Reporte por Cliente */}
+                            <form onSubmit={handleClientReport} className="flex flex-col sm:flex-row gap-2">
+                                <input
+                                    type="text"
+                                    value={clientQuery}
+                                    onChange={(e) => setClientQuery(e.target.value)}
+                                    placeholder="Buscar por nombre o ID de cliente"
+                                    className="p-2 border rounded-md w-full text-base text-black"
+                                />
+                                <button type="submit" className="bg-purple-500 text-white font-medium py-2 px-4 rounded-md hover:bg-purple-600 transition-colors text-base">
+                                    Reporte Cliente
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    {/* Lista de Pedidos */}
+                    <h2 className="text-xl font-semibold mb-4 text-black">Historial de Pedidos</h2>
                     {loading && <p>Cargando pedidos...</p>}
                     {error && <p className="text-red-500">{error}</p>}
                     {!loading && !error && (
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full bg-white">
-                                <thead className="bg-gray-100">
-                                    <tr>
-                                        <th className="text-black py-3 px-6 text-left">ID Pedido</th>
-                                        <th className="text-black py-3 px-6 text-left">Cliente</th>
-                                        <th className="text-black py-3 px-6 text-left">Fecha</th>
-                                        <th className="text-black py-3 px-6 text-right">Total</th>
-                                        <th className="text-black py-3 px-6 text-center">Estado</th>
-                                        <th className="text-black py-3 px-6 text-center">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {orders.map((order) => (
-                                        <tr key={order._id} className="border-b hover:bg-gray-50">
-                                            <td className="text-black py-3 px-6 font-mono">#...{order._id.slice(-6)}</td>
-                                            <td className="text-black py-3 px-6">{order.cliente?.nombre || 'N/A'}</td>
-                                            <td className="text-black py-3 px-6">{order.fecha ? new Date(order.fecha).toLocaleString() : ''}</td>
-                                            <td className="text-black py-3 px-6 text-right">${order.total ? parseFloat(order.total).toFixed(2) : '0.00'}</td>
-                                            <td className="py-3 px-6 text-center">
-                                                <span className={`py-1 px-3 rounded-full text-xs font-semibold capitalize ${getStatusClass(order.estatus)}`}>
-                                                    {order.estatus}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-6 text-center whitespace-nowrap">
-                                                <select
-                                                    onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
-                                                    value={order.estatus}
-                                                    className="text-black bg-gray-200 border rounded p-1 text-xs mr-2"
-                                                >
-                                                    <option value="pendiente">Pendiente</option>
-                                                    <option value="enviado">Enviado</option>
-                                                    <option value="completado">Completado</option>
-                                                    <option value="cancelado">Cancelado</option>
-                                                </select>
-                                                <button onClick={() => handleDeleteOrder(order._id)} className="bg-red-500 text-white py-1 px-3 rounded text-xs hover:bg-red-600">
-                                                    Eliminar
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="space-y-4">
+                            {orders.length > 0 ? orders.map(order => (
+                                <div key={order._id} className="bg-gray-50 p-4 rounded-lg border text-black">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                                        <div>
+                                            <p className="font-semibold text-base">Pedido #{order._id.slice(-6)}</p>
+                                            <p className="text-base">Cliente: {order.cliente?.nombre || 'N/A'}</p>
+                                        </div>
+                                        <p className="text-base">Fecha: {new Date(order.fecha).toLocaleDateString()}</p>
+                                        <p className="font-semibold text-lg">Total: ${parseFloat(order.total).toFixed(2)}</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-base font-medium px-3 py-1 rounded-full ${
+                                                order.estatus === 'pendiente' ? 'bg-yellow-200 text-yellow-800' :
+                                                order.estatus === 'completado' ? 'bg-green-200 text-green-800' :
+                                                'bg-red-200 text-red-800'
+                                            }`}>
+                                                {order.estatus}
+                                            </span>
+                                            <select
+                                                value={order.estatus}
+                                                onChange={(e) => handleStatusChange(order._id, e.target.value)}
+                                                className="p-1 border rounded-md text-base text-black"
+                                                disabled={order.estatus === 'cancelado'}
+                                            >
+                                                <option value="pendiente">Pendiente</option>
+                                                <option value="completado">Completado</option>
+                                                <option value="cancelado">Cancelado</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 border-t pt-3">
+                                        <h4 className="font-semibold text-base">Detalles:</h4>
+                                        <ul className="list-disc list-inside text-base">
+                                            {order.detalles?.map(item => (
+                                                <li key={item.producto_id}>
+                                                    {item.cantidad} x (ID: {item.producto_id.slice(-6)}) @ ${parseFloat(item.precio_unitario).toFixed(2)}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            )) : (
+                                <p className="text-center text-gray-500">No hay pedidos para mostrar.</p>
+                            )}
                         </div>
                     )}
                 </div>
-            </div>
+            </main>
             <Footer />
-        </main>
+        </>
     );
 }
