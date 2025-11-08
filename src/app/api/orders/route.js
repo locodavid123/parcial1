@@ -18,21 +18,27 @@ export async function GET(request) {
     try {
         const db = await getDatabase();
 
-        // 1. Obtener todos los pedidos y clientes en paralelo
-        const [ordersResponse, clientsResponse] = await Promise.all([
+        // 1. Obtener todos los pedidos, clientes y productos en paralelo
+        const [ordersResponse, clientsResponse, productsResponse] = await Promise.all([
             db.orders.list({ include_docs: true }),
-            db.clients.list({ include_docs: true })
+            db.clients.list({ include_docs: true }),
+            db.products.list({ include_docs: true })
         ]);
 
-        // 2. Crear un mapa de clientes para búsqueda eficiente
+        // 2. Crear mapas para una búsqueda eficiente
         const clientsMap = new Map(clientsResponse.rows.map(row => [row.doc._id, row.doc]));
+        const productsMap = new Map(productsResponse.rows.map(row => [row.doc._id, row.doc]));
 
         let orders = ordersResponse.rows.map(row => row.doc);
 
-        // 3. Unir la información del cliente a cada pedido
+        // 3. Unir la información del cliente y los detalles de los productos a cada pedido
         orders = orders.map(order => ({
             ...order,
-            cliente: clientsMap.get(order.cliente_id) || null
+            cliente: clientsMap.get(order.cliente_id) || null,
+            detalles: order.detalles?.map(item => ({
+                ...item,
+                producto: productsMap.get(item.producto_id) || null
+            })) || []
         }));
 
         // 4. Aplicar filtros si existen

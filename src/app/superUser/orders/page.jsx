@@ -35,7 +35,7 @@ export default function SuperUserOrdersPage() {
         e.preventDefault();
         if (clientQuery.trim()) {
             // Redirige para iniciar la descarga del archivo
-            window.location.href = `/api/reports/client-purchases?query=${encodeURIComponent(clientQuery)}`;
+            window.location.href = `/api/report/reporte-cliente?query=${encodeURIComponent(clientQuery)}`;
         } else {
             alert('Por favor, ingrese un nombre o ID de cliente.');
         }
@@ -140,7 +140,7 @@ export default function SuperUserOrdersPage() {
                                         <ul className="list-disc list-inside text-base">
                                             {order.detalles?.map(item => (
                                                 <li key={item.producto_id}>
-                                                    {item.cantidad} x (ID: {item.producto_id.slice(-6)}) @ ${parseFloat(item.precio_unitario).toFixed(2)}
+                                                    {item.cantidad} x {item.producto?.nombre || `(ID: ${item.producto_id.slice(-6)})`} @ ${parseFloat(item.precio_unitario).toFixed(2)}
                                                 </li>
                                             ))}
                                         </ul>

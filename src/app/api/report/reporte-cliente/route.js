@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import getDatabase from '@/app/config/couchdb';
+import { getDatabase } from '@/app/config/couchdb';
 import ExcelJS from 'exceljs';
 
 export async function GET(request) {
@@ -16,7 +16,7 @@ export async function GET(request) {
         
         const client = clientsResponse.rows
             .map(r => r.doc)
-            .find(c => c._id === query || c.nombre.toLowerCase().includes(query.toLowerCase()));
+            .find(c => c._id === query || (c.nombre && c.nombre.toLowerCase().includes(query.toLowerCase())));
 
         if (!client) {
             return NextResponse.json({ message: `No se encontró un cliente con "${query}".` }, { status: 404 });
