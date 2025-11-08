@@ -9,22 +9,22 @@ async function sendPasswordResetEmail(email, token) {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const resetUrl = `${baseUrl}/forgot-password/cambio-contrasena?token=${token}`;
 
-    // Configura el transportador de correo para usar Ethereal Email.
-    // Ethereal es un servicio de prueba que no envía correos reales,
-    // sino que los captura para que puedas previsualizarlos.
+    // Configura el transportador de correo para usar Gmail.
+    // ADVERTENCIA: Las credenciales están escritas directamente en el código.
+    // Esto es muy inseguro y no se recomienda para producción.
+    // Lo ideal es usar variables de entorno (process.env.EMAIL_USER).
     const transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false, // true for 465, false for other ports
+        service: 'gmail',
         auth: {
-            user: 'dana88@ethereal.email',
-            pass: 'KZXXWkDk8eUg8Y6uxg'
+            user: 'produccion364@gmail.com',
+            pass: 'pohnfrianpzlwiam', // Contraseña de aplicación. No es la contraseña principal.
         },
     });
 
     // Define el contenido del correo.
     const mailOptions = {
-        from: '"Soporte de Cuentas" <soporte@tuapp.com>',
+        // El remitente debe ser el mismo correo que usas para la autenticación.
+        from: `"Soporte de Cuentas" <produccion364@gmail.com>`,
         to: email, // El correo del usuario que solicitó el reseteo
         subject: 'Recuperación de Contraseña',
         html: `<p>Has solicitado restablecer tu contraseña.</p>
@@ -35,10 +35,8 @@ async function sendPasswordResetEmail(email, token) {
     };
 
     // Envía el correo.
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Correo de prueba enviado: %s', info.messageId);
-    // La siguiente URL te permite ver el correo enviado en el navegador.
-    console.log('Puedes ver el correo en: %s', nodemailer.getTestMessageUrl(info));
+    await transporter.sendMail(mailOptions);
+    console.log(`Correo de recuperación enviado a: ${email}`);
 }
 
 export async function POST(request) {
